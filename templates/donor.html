@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Donor Profile: {{ donor.formatted_full_name }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 0 20px;
+            line-height: 1.5;
+        }
+        .profile-header {
+            margin-bottom: 20px;
+        }
+        .profile-actions {
+            margin-bottom: 20px;
+        }
+        .action-button {
+            background: #007bff;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            margin-right: 10px;
+        }
+        .action-button.add {
+            background: #28a745;
+        }
+        .action-button:hover {
+            opacity: 0.9;
+        }
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        .section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .section h2 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: #333;
+            border-bottom: 2px solid #e9ecef;
+            padding-bottom: 8px;
+            font-size: 1.3em;
+        }
+        .field-group {
+            margin-bottom: 12px;
+            display: flex;
+            flex-wrap: wrap;
+        }
+        .field-label {
+            font-weight: bold;
+            color: #495057;
+            min-width: 140px;
+            margin-right: 10px;
+        }
+        .field-value {
+            flex: 1;
+            color: #333;
+        }
+        .empty-value {
+            color: #6c757d;
+            font-style: italic;
+        }
+        .status-badges {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+        .status-badge {
+            background: #e9ecef;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            color: #495057;
+        }
+        .status-badge.active {
+            background: #28a745;
+            color: white;
+        }
+        .status-badge.expired {
+            background: #dc3545;
+            color: white;
+        }
+        .status-badge.deceased {
+            background: #6c757d;
+            color: white;
+        }
+        .donation-summary {
+            grid-column: 1 / -1;
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #28a745;
+        }
+        .donation-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 15px;
+        }
+        .stat-item {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .stat-label {
+            font-size: 0.9em;
+            color: #6c757d;
+            margin-bottom: 5px;
+        }
+        .stat-value {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #28a745;
+        }
+        .stat-date {
+            font-size: 0.85em;
+            color: #6c757d;
+            margin-top: 3px;
+        }
+        .transaction-section {
+            grid-column: 1 / -1;
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        .transaction-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            background: white;
+            border-radius: 6px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .transaction-table th,
+        .transaction-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .transaction-table th {
+            background-color: #e9ecef;
+            font-weight: 600;
+            color: #495057;
+        }
+        .transaction-table tr:hover {
+            background-color: #f8f9fa;
+        }
+        .back-link {
+            display: inline-block;
+            margin-top: 20px;
+            color: #6c757d;
+            text-decoration: none;
+            padding: 8px 16px;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+        }
+        .back-link:hover {
+            background-color: #f8f9fa;
+            color: #495057;
+        }
+        .alert {
+            padding: 12px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+        .alert-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .alert-error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            .donation-stats {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="profile-header">
+        <h1>Donor Profile: {{ donor.formatted_full_name or (donor.first_name + ' ' + donor.last_name) or 'Donor #' + donor.base_donor_id|string }}</h1>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="profile-actions">
+        <a href="{{ url_for('edit_donor', donor_id=donor.base_donor_id) }}" class="action-button">Edit Donor</a>
+        <a href="{{ url_for('add_transaction', donor_id=donor.base_donor_id) }}" class="action-button add">Add Transaction</a>
+    </div>
+
+    <div class="main-content">
+        <div class="section">
+            <h2>Basic Information</h2>
+            <div class="field-group">
+                <span class="field-label">Donor ID:</span>
+                <span class="field-value">{{ donor.base_donor_id }}</span>
+            </div>
+            {% if donor.old_donor_id %}
+                <div class="field-group">
+                    <span class="field-label">Legacy Donor ID:</span>
+                    <span class="field-value">{{ donor.old_donor_id }}</span>
+                </div>
+            {% endif %}
+            {% if donor.alternate_id %}
+                <div class="field-group">
+                    <span class="field-label">Alternate ID:</span>
+                    <span class="field-value">{{ donor.alternate_id }}</span>
+                </div>
+            {% endif %}
+            <div class="field-group">
+                <span class="field-label">Name:</span>
+                <span class="field-value">{{ [donor.name_prefix, donor.first_name, donor.last_name, donor.suffix] | reject('none') | join(' ') or '<span class="empty-value">Not specified</span>'|safe }}</span>
+            </div>
+            {% set secondary_parts = [donor.secondary_title, donor.secondary_first_name, donor.secondary_last_name, donor.secondary_suffix] | reject('none') | list %}
+            {% set secondary_clean = secondary_parts | reject('equalto', 'nan') | list %}
+            {% if secondary_clean and secondary_clean != ['nan'] %}
+                <div class="field-group">
+                    <span class="field-label">Secondary Name:</span>
+                    <span class="field-value">{{ secondary_clean | join(' ') }}</span>
+                </div>
+            {% endif %}
+            {% if donor.salutation_dear %}
+                <div class="field-group">
+                    <span class="field-label">Salutation:</span>
+                    <span class="field-value">{{ donor.salutation_dear }}</span>
+                </div>
+            {% endif %}
+            {% if donor.birth_date %}
+                <div class="field-group">
+                    <span class="field-label">Birth Date:</span>
+                    <span class="field-value">{{ donor.birth_date }}</span>
+                </div>
+            {% endif %}
+            {% if donor.gender_code %}
+                <div class="field-group">
+                    <span class="field-label">Gender:</span>
+                    <span class="field-value">{{ donor.gender_code }}</span>
+                </div>
+            {% endif %}
+            {% if donor.date_added_to_database %}
+                <div class="field-group">
+                    <span class="field-label">Date Added:</span>
+                    <span class="field-value">{{ donor.date_added_to_database }}</span>
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="section">
+            <h2>Contact & Address</h2>
+            {% if donor.address_1_company or donor.address_2_secondary or donor.address_3_primary or donor.city or donor.state or donor.zip_plus4 %}
+                <div class="field-group">
+                    <span class="field-label">Address:</span>
+                    <div class="field-value">
+                        {% if donor.address_1_company %}{{ donor.address_1_company }}<br>{% endif %}
+                        {% if donor.address_2_secondary %}{{ donor.address_2_secondary }}<br>{% endif %}
+                        {% if donor.address_3_primary %}{{ donor.address_3_primary }}<br>{% endif %}
+                        {% if donor.city or donor.state or donor.zip_plus4 %}
+                            {{ donor.city or '' }}{% if donor.city and donor.state %}, {% endif %}{{ donor.state or '' }} {{ donor.zip_plus4 or '' }}
+                        {% endif %}
+                    </div>
+                </div>
+            {% endif %}
+            {% if donor.email_address %}
+                <div class="field-group">
+                    <span class="field-label">Email:</span>
+                    <span class="field-value">{{ donor.email_address }}</span>
+                </div>
+            {% endif %}
+            {% if donor.phone %}
+                <div class="field-group">
+                    <span class="field-label">Phone:</span>
+                    <span class="field-value">{{ donor.phone }}</span>
+                </div>
+            {% endif %}
+            {% if donor.work_phone %}
+                <div class="field-group">
+                    <span class="field-label">Work Phone:</span>
+                    <span class="field-value">{{ donor.work_phone }}</span>
+                </div>
+            {% endif %}
+            {% if donor.cell_phone %}
+                <div class="field-group">
+                    <span class="field-label">Cell Phone:</span>
+                    <span class="field-value">{{ donor.cell_phone }}</span>
+                </div>
+            {% endif %}
+            {% if donor.twitter %}
+                <div class="field-group">
+                    <span class="field-label">Twitter:</span>
+                    <span class="field-value">{{ donor.twitter }}</span>
+                </div>
+            {% endif %}
+            
+            <h2 style="margin-top: 25px;">Status Information</h2>
+            <div class="field-group">
+                <span class="field-label">Donor Status:</span>
+                <span class="field-value">
+                    {{ donor.donor_status_desc or donor.donor_status or '<span class="empty-value">Not specified</span>'|safe }}
+                </span>
+            </div>
+            <div class="field-group">
+                <span class="field-label">Newsletter Status:</span>
+                <span class="field-value">
+                    {{ donor.newsletter_status_desc or donor.newsletter_status or '<span class="empty-value">Not specified</span>'|safe }}
+                </span>
+            </div>
+            {% if donor.expiration_date %}
+                <div class="field-group">
+                    <span class="field-label">Expiration Date:</span>
+                    <span class="field-value">{{ donor.expiration_date }}</span>
+                </div>
+            {% endif %}
+            
+            <div class="status-badges">
+                {% if donor.donor_status_desc %}
+                    {% if 'NON DONOR' in donor.donor_status_desc %}
+                        <span class="status-badge expired">{{ donor.donor_status_desc }}</span>
+                    {% elif 'DECEASED' in donor.donor_status_desc %}
+                        <span class="status-badge deceased">{{ donor.donor_status_desc }}</span>
+                    {% else %}
+                        <span class="status-badge active">{{ donor.donor_status_desc }}</span>
+                    {% endif %}
+                {% endif %}
+                {% if donor.newsletter_status_desc and donor.newsletter_status_desc != donor.donor_status_desc %}
+                    {% if 'DECEASED' in donor.newsletter_status_desc %}
+                        <span class="status-badge deceased">{{ donor.newsletter_status_desc }}</span>
+                    {% elif 'EXPIRED' in donor.newsletter_status_desc %}
+                        <span class="status-badge expired">{{ donor.newsletter_status_desc }}</span>
+                    {% else %}
+                        <span class="status-badge">{{ donor.newsletter_status_desc }}</span>
+                    {% endif %}
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="donation-summary">
+            <h2>Donation Summary</h2>
+            <div class="donation-stats">
+                <div class="stat-item">
+                    <div class="stat-label">Total Donated</div>
+                    <div class="stat-value">${{ "%.2f"|format(donor.total_dollar_amount or 0) }}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Total Responses</div>
+                    <div class="stat-value">{{ donor.total_responses_includes_zero or 0 }}</div>
+                    <div class="stat-date">({{ donor.total_responses_non_zero or 0 }} non-zero)</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Latest Donation</div>
+                    {% if donor.latest_amount %}
+                        <div class="stat-value">${{ "%.2f"|format(donor.latest_amount) }}</div>
+                        <div class="stat-date">{{ donor.latest_date or 'Date not recorded' }}</div>
+                    {% else %}
+                        <div class="stat-value"><span class="empty-value">None recorded</span></div>
+                    {% endif %}
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Largest Donation</div>
+                    {% if donor.largest_amount %}
+                        <div class="stat-value">${{ "%.2f"|format(donor.largest_amount) }}</div>
+                        <div class="stat-date">{{ donor.largest_date or 'Date not recorded' }}</div>
+                    {% else %}
+                        <div class="stat-value"><span class="empty-value">None recorded</span></div>
+                    {% endif %}
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">First Donation</div>
+                    {% if donor.inception_amount %}
+                        <div class="stat-value">${{ "%.2f"|format(donor.inception_amount) }}</div>
+                        <div class="stat-date">{{ donor.inception_date or 'Date not recorded' }}</div>
+                    {% else %}
+                        <div class="stat-value"><span class="empty-value">None recorded</span></div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        {% if transactions %}
+            <div class="transaction-section">
+                <h2>Transaction History ({{ transactions|length }})</h2>
+                <div class="transaction-table-container">
+                    <table class="transaction-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Amount</th>
+                                <th>Payment Type</th>
+                                <th>Payment Method</th>
+                                <th>Batch #</th>
+                                <th>Job Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for tx in transactions %}
+                                <tr>
+                                    <td>{{ tx.trans_date.strftime("%Y-%m-%d") }}</td>
+                                    <td>${{ "%.2f"|format(tx.trans_amount) }}</td>
+                                    <td>{{ tx.payment_type or "" }}</td>
+                                    <td>{{ tx.payment_method or "" }}</td>
+                                    <td>{{ tx.update_batch_num or "" }}</td>
+                                    <td>
+                                        {% if tx.trans_date.year > 2018 and tx.payment_type == "E" and tx.bluebook_job_description == "DUES OR EAGLES" %}
+                                            PS EAGLES
+                                        {% else %}
+                                            {{ tx.bluebook_job_description or "" }}
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        {% else %}
+            <div class="transaction-section">
+                <h2>Transaction History</h2>
+                <p><em>No transactions found for this donor.</em></p>
+            </div>
+        {% endif %}
+    </div>
+
+    <a href="{{ url_for('home') }}" class="back-link">&larr; Back to Search</a>
+</body>
+</html>

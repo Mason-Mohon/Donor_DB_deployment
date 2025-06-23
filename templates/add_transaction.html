@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Add Transaction for Donor #{{ donor_id }}</title>
+    <style>
+        /* Reusing styles for consistency */
+        body { font-family: Arial, sans-serif; max-width: 700px; margin: 20px auto; padding: 0 20px; line-height: 1.6; }
+        .form-container { background: #f9f9f9; padding: 25px; border-radius: 8px; box-shadow: 0 0 15px rgba(0,0,0,0.1); }
+        h1 { text-align: center; color: #333; margin-bottom: 25px; }
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .form-group { display: flex; flex-direction: column; }
+        .form-group.full-width { grid-column: 1 / -1; } /* Span full width */
+        .form-group label { font-weight: bold; color: #333; margin-bottom: 5px; font-size: 0.9em; }
+        .form-group input[type="text"],
+        .form-group input[type="date"],
+        .form-group input[type="number"],
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 0.95em;
+        }
+        .form-group textarea { min-height: 60px; resize: vertical; }
+        .form-actions { text-align: right; margin-top: 30px; }
+        .form-actions button {
+            background-color: #28a745; color: white; padding: 12px 25px; border: none;
+            border-radius: 5px; cursor: pointer; font-size: 1em; transition: background-color 0.3s ease;
+        }
+        .form-actions button:hover { background-color: #218838; }
+        .back-link {
+            display: inline-block; margin-bottom:20px; color: #6c757d; text-decoration: none;
+            padding: 8px 15px; border: 1px solid #6c757d; border-radius: 5px;
+        }
+        .back-link:hover { background-color: #f1f1f1; }
+        .alert { padding: 10px; margin-bottom: 15px; border-radius: 4px; }
+        .alert-error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .alert-success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    </style>
+</head>
+<body>
+    <a href="{{ url_for('donor', donor_id=donor_id) }}" class="back-link">&larr; Back to Donor Profile</a>
+    <div class="form-container">
+        <h1>Add Transaction for Donor #{{ donor_id }}</h1>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="trans_date">Transaction Date <span style="color:red;">*</span></label>
+                    <input type="date" id="trans_date" name="trans_date" value="{{ transaction.trans_date or '' }}" required>
+                </div>
+                <div class="form-group">
+                    <label for="trans_amount">Amount ($) <span style="color:red;">*</span></label>
+                    <input type="number" step="0.01" id="trans_amount" name="trans_amount" value="{{ transaction.trans_amount or '' }}" required placeholder="e.g., 25.00">
+                </div>
+                <div class="form-group">
+                    <label for="appeal_code">Appeal Code</label>
+                    <input type="text" id="appeal_code" name="appeal_code" value="{{ transaction.appeal_code or '' }}">
+                </div>
+                <div class="form-group">
+                    <label for="payment_type">Payment Type</label>
+                    <input type="text" id="payment_type" name="payment_type" value="{{ transaction.payment_type or '' }}">
+                </div>
+                <div class="form-group">
+                    <label for="update_batch_num">Update Batch #</label>
+                    <input type="text" id="update_batch_num" name="update_batch_num" value="{{ transaction.update_batch_num or '' }}">
+                </div>
+                 <div class="form-group">
+                    <label for="bluebook_job_description">Bluebook Job Description</label>
+                    <input type="text" id="bluebook_job_description" name="bluebook_job_description" value="{{ transaction.bluebook_job_description or '' }}">
+                </div>
+                <div class="form-group">
+                    <label for="payment_method">Payment Method</label>
+                    <input type="text" id="payment_method" name="payment_method" value="{{ transaction.payment_method or '' }}" placeholder="e.g., Check, Credit Card, Cash">
+                </div>
+                <div class="form-group full-width">
+                    <label for="bluebook_list_description">Bluebook List Description</label>
+                    <textarea id="bluebook_list_description" name="bluebook_list_description">{{ transaction.bluebook_list_description or '' }}</textarea>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit">Add Transaction</button>
+            </div>
+        </form>
+    </div>
+</body>
+</html> 

@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Donor Quick Add</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 0 20px;
+            line-height: 1.6;
+        }
+        .form-container {
+            background: #f9f9f9;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 25px;
+        }
+        .instructions {
+            background: #e8f4ff;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .instructions h3 {
+            margin-top: 0;
+            color: #0056b3;
+        }
+        .donor-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            background: white;
+            border-radius: 5px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .donor-table th,
+        .donor-table td {
+            padding: 12px 8px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        .donor-table th {
+            background-color: #007bff;
+            color: white;
+            font-weight: bold;
+            position: sticky;
+            top: 0;
+        }
+        .donor-table input[type="text"],
+        .donor-table input[type="email"],
+        .donor-table input[type="tel"],
+        .donor-table select {
+            width: 100%;
+            padding: 6px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            font-size: 0.9em;
+            box-sizing: border-box;
+        }
+        .donor-table select {
+            height: 32px;
+        }
+        .required {
+            background-color: #fff5f5;
+        }
+        .row-number {
+            background-color: #f8f9fa;
+            text-align: center;
+            font-weight: bold;
+            color: #6c757d;
+            width: 40px;
+        }
+        .action-buttons {
+            margin: 20px 0;
+            text-align: center;
+        }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            margin: 0 5px;
+            transition: background-color 0.3s ease;
+        }
+        .btn-primary {
+            background-color: #007bff;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #0056b3;
+        }
+        .btn-success {
+            background-color: #28a745;
+            color: white;
+        }
+        .btn-success:hover {
+            background-color: #1e7e34;
+        }
+        .btn-secondary {
+            background-color: #6c757d;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background-color: #545b62;
+        }
+        .btn-danger {
+            background-color: #dc3545;
+            color: white;
+        }
+        .btn-danger:hover {
+            background-color: #c82333;
+        }
+        .back-link {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: #6c757d;
+            text-decoration: none;
+            padding: 8px 15px;
+            border: 1px solid #6c757d;
+            border-radius: 5px;
+        }
+        .back-link:hover {
+            background-color: #f1f1f1;
+        }
+        .alert {
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+        }
+        .alert-error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .alert-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .alert-warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+        .remove-row {
+            background: none;
+            border: none;
+            color: #dc3545;
+            cursor: pointer;
+            font-size: 1.2em;
+            padding: 2px 6px;
+        }
+        .remove-row:hover {
+            background-color: #f8f9fa;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <a href="{{ url_for('home') }}" class="back-link">&larr; Back to Search</a>
+    
+    <div class="form-container" data-next-donor-id="{{ next_donor_id or 1 }}">
+        <h1>Donor Quick Add</h1>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="instructions">
+            <h3>Quick Add Instructions</h3>
+            <ul>
+                <li><strong>Last Name</strong> and <strong>Donor ID</strong> are required for each donor</li>
+                <li><strong>Donor IDs</strong> are auto-filled with the next available IDs, but can be edited if needed</li>
+                <li><strong>Salutation</strong> is optional (e.g., "Dear John and Jane", "Dear Mr. Smith")</li>
+                <li><strong>State</strong> should be 2-letter codes (e.g., MO, CA, NY)</li>
+                <li><strong>Newsletter Status:</strong> A=Active, L=Lifetime, X=Expired, etc.</li>
+                <li>Click <strong>"Add Row"</strong> to add more donors</li>
+                <li>Click the <strong>×</strong> button to remove a row</li>
+                <li><strong>Note:</strong> Duplicate donor IDs are not allowed</li>
+            </ul>
+        </div>
+
+        <form method="POST">
+            <table class="donor-table">
+                <thead>
+                    <tr>
+                        <th style="width: 40px;">#</th>
+                        <th style="width: 80px;">Donor ID <span style="color: #ffcccc;">*</span></th>
+                        <th style="width: 100px;">First Name</th>
+                        <th style="width: 100px;">Last Name <span style="color: #ffcccc;">*</span></th>
+                        <th style="width: 150px;">Salutation</th>
+                        <th style="width: 120px;">Email</th>
+                        <th style="width: 100px;">Phone</th>
+                        <th style="width: 150px;">Address Line 1</th>
+                        <th style="width: 120px;">Address Line 2</th>
+                        <th style="width: 100px;">City</th>
+                        <th style="width: 60px;">State</th>
+                        <th style="width: 80px;">ZIP Code</th>
+                        <th style="width: 100px;">Newsletter Status</th>
+                        <th style="width: 30px;">Remove</th>
+                    </tr>
+                </thead>
+                <tbody id="donor-table-body">
+                    {% if form_data %}
+                        {% set max_row = [] %}
+                        {% for key in form_data.keys() %}
+                            {% if key.startswith('first_name_') %}
+                                {% set row_num = key.split('_')[-1]|int %}
+                                {% if max_row.append(row_num) %}{% endif %}
+                            {% endif %}
+                        {% endfor %}
+                        {% set max_existing = max_row|max if max_row else 0 %}
+                        {% for i in range(1, max_existing + 1) %}
+                            <tr>
+                                <td class="row-number">{{ i }}</td>
+                                <td><input type="number" name="donor_id_{{ i }}" value="{{ form_data.get('donor_id_' + i|string, next_donor_id + i - 1) }}" class="required"></td>
+                                <td><input type="text" name="first_name_{{ i }}" value="{{ form_data.get('first_name_' + i|string, '') }}"></td>
+                                <td><input type="text" name="last_name_{{ i }}" value="{{ form_data.get('last_name_' + i|string, '') }}" class="required"></td>
+                                <td><input type="text" name="salutation_{{ i }}" value="{{ form_data.get('salutation_' + i|string, '') }}" placeholder="Dear John and Jane"></td>
+                                <td><input type="email" name="email_{{ i }}" value="{{ form_data.get('email_' + i|string, '') }}"></td>
+                                <td><input type="tel" name="phone_{{ i }}" value="{{ form_data.get('phone_' + i|string, '') }}"></td>
+                                <td><input type="text" name="address_line_1_{{ i }}" value="{{ form_data.get('address_line_1_' + i|string, '') }}"></td>
+                                <td><input type="text" name="address_line_2_{{ i }}" value="{{ form_data.get('address_line_2_' + i|string, '') }}"></td>
+                                <td><input type="text" name="city_{{ i }}" value="{{ form_data.get('city_' + i|string, '') }}"></td>
+                                <td><input type="text" name="state_{{ i }}" maxlength="2" value="{{ form_data.get('state_' + i|string, '') }}"></td>
+                                <td><input type="text" name="zip_code_{{ i }}" value="{{ form_data.get('zip_code_' + i|string, '') }}"></td>
+                                <td>
+                                    <select name="newsletter_status_{{ i }}">
+                                        <option value="">Select...</option>
+                                        <option value="A" {% if form_data.get('newsletter_status_' + i|string) == 'A' %}selected{% endif %}>A - Active</option>
+                                        <option value="L" {% if form_data.get('newsletter_status_' + i|string) == 'L' %}selected{% endif %}>L - Lifetime</option>
+                                        <option value="X" {% if form_data.get('newsletter_status_' + i|string) == 'X' %}selected{% endif %}>X - Expired</option>
+                                        <option value="M" {% if form_data.get('newsletter_status_' + i|string) == 'M' %}selected{% endif %}>M - Mutiny</option>
+                                        <option value="E" {% if form_data.get('newsletter_status_' + i|string) == 'E' %}selected{% endif %}>E - Exempt</option>
+                                    </select>
+                                </td>
+                                <td><button type="button" class="remove-row" onclick="removeRow(this)">×</button></td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        {% for i in range(1, 6) %}
+                            <tr>
+                                <td class="row-number">{{ i }}</td>
+                                <td><input type="number" name="donor_id_{{ i }}" value="{{ next_donor_id + i - 1 }}" class="required"></td>
+                                <td><input type="text" name="first_name_{{ i }}"></td>
+                                <td><input type="text" name="last_name_{{ i }}" class="required"></td>
+                                <td><input type="text" name="salutation_{{ i }}" placeholder="Dear John and Jane"></td>
+                                <td><input type="email" name="email_{{ i }}"></td>
+                                <td><input type="tel" name="phone_{{ i }}"></td>
+                                <td><input type="text" name="address_line_1_{{ i }}"></td>
+                                <td><input type="text" name="address_line_2_{{ i }}"></td>
+                                <td><input type="text" name="city_{{ i }}"></td>
+                                <td><input type="text" name="state_{{ i }}" maxlength="2"></td>
+                                <td><input type="text" name="zip_code_{{ i }}"></td>
+                                <td>
+                                    <select name="newsletter_status_{{ i }}">
+                                        <option value="">Select...</option>
+                                        <option value="A">A - Active</option>
+                                        <option value="L">L - Lifetime</option>
+                                        <option value="X">X - Expired</option>
+                                        <option value="M">M - Mutiny</option>
+                                        <option value="E">E - Exempt</option>
+                                    </select>
+                                </td>
+                                <td><button type="button" class="remove-row" onclick="removeRow(this)">×</button></td>
+                            </tr>
+                        {% endfor %}
+                    {% endif %}
+                </tbody>
+            </table>
+
+            <div class="action-buttons">
+                <button type="button" class="btn btn-secondary" onclick="addRow()">Add Row</button>
+                <button type="button" class="btn btn-danger" onclick="clearAll()">Clear All</button>
+                <button type="submit" class="btn btn-success">Add Donors</button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let rowCount = 5;
+        let nextDonorId = parseInt(document.querySelector('.form-container').getAttribute('data-next-donor-id')) || 1;
+
+        function addRow() {
+            rowCount++;
+            const tbody = document.getElementById('donor-table-body');
+            const newRow = document.createElement('tr');
+            
+            // Calculate the next donor ID based on current highest in the table
+            const currentDonorIds = Array.from(document.querySelectorAll('input[name^="donor_id_"]'))
+                .map(input => parseInt(input.value) || 0)
+                .filter(id => id > 0);
+            const maxCurrentId = currentDonorIds.length > 0 ? Math.max(...currentDonorIds) : nextDonorId - 1;
+            const newDonorId = maxCurrentId + 1;
+            
+            newRow.innerHTML = `
+                <td class="row-number">${rowCount}</td>
+                <td><input type="number" name="donor_id_${rowCount}" value="${newDonorId}" class="required"></td>
+                <td><input type="text" name="first_name_${rowCount}"></td>
+                <td><input type="text" name="last_name_${rowCount}" class="required"></td>
+                <td><input type="text" name="salutation_${rowCount}" placeholder="Dear John and Jane"></td>
+                <td><input type="email" name="email_${rowCount}"></td>
+                <td><input type="tel" name="phone_${rowCount}"></td>
+                <td><input type="text" name="address_line_1_${rowCount}"></td>
+                <td><input type="text" name="address_line_2_${rowCount}"></td>
+                <td><input type="text" name="city_${rowCount}"></td>
+                <td><input type="text" name="state_${rowCount}" maxlength="2"></td>
+                <td><input type="text" name="zip_code_${rowCount}"></td>
+                <td>
+                    <select name="newsletter_status_${rowCount}">
+                        <option value="">Select...</option>
+                        <option value="A">A - Active</option>
+                        <option value="L">L - Lifetime</option>
+                        <option value="X">X - Expired</option>
+                        <option value="M">M - Mutiny</option>
+                        <option value="E">E - Exempt</option>
+                    </select>
+                </td>
+                <td><button type="button" class="remove-row" onclick="removeRow(this)">×</button></td>
+            `;
+            
+            tbody.appendChild(newRow);
+        }
+
+        function removeRow(button) {
+            const row = button.closest('tr');
+            const tbody = document.getElementById('donor-table-body');
+            
+            if (tbody.children.length <= 1) {
+                alert('You must have at least one row.');
+                return;
+            }
+            
+            row.remove();
+            updateRowNumbers();
+        }
+
+        function clearAll() {
+            if (confirm('Are you sure you want to clear all fields?')) {
+                const inputs = document.querySelectorAll('#donor-table-body input, #donor-table-body select');
+                inputs.forEach(input => {
+                    if (input.tagName === 'SELECT') {
+                        input.selectedIndex = 0;
+                    } else {
+                        input.value = '';
+                    }
+                });
+            }
+        }
+
+        function updateRowNumbers() {
+            const rows = document.querySelectorAll('#donor-table-body tr');
+            rows.forEach((row, index) => {
+                const rowNumberCell = row.querySelector('.row-number');
+                if (rowNumberCell) {
+                    rowNumberCell.textContent = index + 1;
+                }
+            });
+        }
+
+        document.addEventListener('input', function(e) {
+            if (e.target.name && e.target.name.startsWith('state_')) {
+                e.target.value = e.target.value.toUpperCase();
+            }
+        });
+    </script>
+</body>
+</html> 

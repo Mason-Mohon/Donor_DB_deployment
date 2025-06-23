@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Transaction Search</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+        .search-form {
+            background: #f5f5f5;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .form-section {
+            background: #fff;
+            padding: 20px;
+            margin: 15px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .form-section h3 {
+            margin-top: 0;
+            margin-bottom: 20px;
+            color: #333;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        .form-group {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .form-group.range {
+            display: grid;
+            grid-template-columns: 120px 1fr 30px 1fr;
+            align-items: center;
+            gap: 10px;
+        }
+        label {
+            min-width: 120px;
+            color: #333;
+        }
+        input[type="text"],
+        input[type="number"],
+        input[type="date"] {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            font-size: 14px;
+            flex: 1;
+        }
+        .range-separator {
+            text-align: center;
+            color: #666;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        .results-table th,
+        .results-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        .results-table th {
+            background: #f8f9fa;
+            font-weight: bold;
+        }
+        .results-table tr:hover {
+            background: #f5f5f5;
+        }
+        .donor-link {
+            color: #007bff;
+            text-decoration: none;
+        }
+        .donor-link:hover {
+            text-decoration: underline;
+        }
+        .amount {
+            font-family: monospace;
+        }
+        .search-tips {
+            margin-top: 20px;
+            padding: 15px;
+            background: #e8f4ff;
+            border-radius: 5px;
+        }
+        .search-tips ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .search-tips li {
+            margin-bottom: 5px;
+            color: #666;
+        }
+        .alert {
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 3px;
+        }
+        .alert-warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+        .alert-error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .summary {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .summary h3 {
+            margin-top: 0;
+        }
+        .total {
+            font-weight: bold;
+            color: #28a745;
+        }
+        /* Add pagination styles */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 20px 0;
+            gap: 10px;
+        }
+        .pagination-info {
+            color: #666;
+            margin-right: 20px;
+        }
+        .pagination-button {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            background: #fff;
+            color: #333;
+            text-decoration: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .pagination-button:hover {
+            background: #f5f5f5;
+        }
+        .pagination-button.active {
+            background: #007bff;
+            color: white;
+            border-color: #007bff;
+        }
+        .pagination-button.disabled {
+            color: #999;
+            cursor: not-allowed;
+            background: #f5f5f5;
+        }
+        .download-buttons {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        .download-button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: white;
+        }
+        .download-button.csv {
+            background-color: #28a745;
+        }
+        .download-button.csv:hover {
+            background-color: #218838;
+        }
+        .download-button.pdf {
+            background-color: #dc3545;
+        }
+        .download-button.pdf:hover {
+            background-color: #c82333;
+        }
+    </style>
+</head>
+<body>
+    <h1>Transaction Search</h1>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <form method="POST" class="search-form">
+        <div class="form-section">
+            <h3>Date Range</h3>
+            <div class="form-group range">
+                <label for="start_date">Transaction Date:</label>
+                <input type="date" id="start_date" name="start_date" value="{{ search_params.get('start_date', '') }}">
+                <span class="range-separator">to</span>
+                <input type="date" id="end_date" name="end_date" value="{{ search_params.get('end_date', '') }}">
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h3>Amount Range</h3>
+            <div class="form-group range">
+                <label for="min_amount">Amount:</label>
+                <input type="number" step="0.01" id="min_amount" name="min_amount" placeholder="Min amount" value="{{ search_params.get('min_amount', '') }}">
+                <span class="range-separator">to</span>
+                <input type="number" step="0.01" id="max_amount" name="max_amount" placeholder="Max amount" value="{{ search_params.get('max_amount', '') }}">
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h3>Additional Criteria</h3>
+            <div class="form-group">
+                <label for="appeal_code">Appeal Code:</label>
+                <input type="text" id="appeal_code" name="appeal_code" value="{{ search_params.get('appeal_code', '') }}">
+            </div>
+
+            <div class="form-group">
+                <label for="payment_type">Payment Type:</label>
+                <input type="text" id="payment_type" name="payment_type" value="{{ search_params.get('payment_type', '') }}">
+            </div>
+
+            <div class="form-group">
+                <label for="update_batch_num">Update Batch #:</label>
+                <input type="text" id="update_batch_num" name="update_batch_num" value="{{ search_params.get('update_batch_num', '') }}">
+            </div>
+
+            <div class="form-group">
+                <label for="bluebook_job_description">Job Description:</label>
+                <input type="text" id="bluebook_job_description" name="bluebook_job_description" value="{{ search_params.get('bluebook_job_description', '') }}">
+            </div>
+
+            <div class="form-group">
+                <label for="bluebook_list_description">List Description:</label>
+                <input type="text" id="bluebook_list_description" name="bluebook_list_description" value="{{ search_params.get('bluebook_list_description', '') }}">
+            </div>
+        </div>
+
+        <button type="submit">Search Transactions</button>
+    </form>
+
+    {% if transactions %}
+        <div class="summary">
+            <h3>Search Results Summary</h3>
+            <p><strong>Total Transactions:</strong> {{ total_results }}</p>
+            {% if total_results > 50 %}
+                <p><em>Showing {{ (current_page - 1) * 50 + 1 }} to {{ [current_page * 50, total_results]|min }} of {{ total_results }} results</em></p>
+            {% endif %}
+            <p class="total"><strong>Total Amount:</strong> ${{ "%.2f"|format(total_amount) }}</p>
+            {% if search_params %}
+                <h4>Search Criteria Used:</h4>
+                <ul>
+                    {% if search_params.get('start_date') or search_params.get('end_date') %}
+                        <li>
+                            <strong>Date Range:</strong>
+                            {% if search_params.get('start_date') %}From {{ search_params.get('start_date') }}{% endif %}
+                            {% if search_params.get('end_date') %}to {{ search_params.get('end_date') }}{% endif %}
+                        </li>
+                    {% endif %}
+                    {% if search_params.get('min_amount') or search_params.get('max_amount') %}
+                        <li>
+                            <strong>Amount Range:</strong>
+                            {% if search_params.get('min_amount') %}${{ search_params.get('min_amount') }}{% endif %}
+                            {% if search_params.get('max_amount') %}to ${{ search_params.get('max_amount') }}{% endif %}
+                        </li>
+                    {% endif %}
+                    {% for field in ['appeal_code', 'payment_type', 'update_batch_num', 'bluebook_job_description', 'bluebook_list_description'] %}
+                        {% if search_params.get(field) %}
+                            <li><strong>{{ field|replace('_', ' ')|title }}:</strong> {{ search_params.get(field) }}</li>
+                        {% endif %}
+                    {% endfor %}
+                </ul>
+            {% endif %}
+
+            <div class="download-buttons">
+                <form method="POST" action="{{ url_for('download_transaction_results', format='csv') }}" style="display: inline;">
+                    {% for field, value in search_params.items() %}
+                        {% if value %}
+                            <input type="hidden" name="{{ field }}" value="{{ value }}">
+                        {% endif %}
+                    {% endfor %}
+                    <button type="submit" class="download-button csv">
+                        Download as CSV
+                    </button>
+                </form>
+                <form method="POST" action="{{ url_for('download_transaction_results', format='pdf') }}" style="display: inline;">
+                    {% for field, value in search_params.items() %}
+                        {% if value %}
+                            <input type="hidden" name="{{ field }}" value="{{ value }}">
+                        {% endif %}
+                    {% endfor %}
+                    <button type="submit" class="download-button pdf">
+                        Download as PDF
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table class="results-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Donor Name</th>
+                        <th>Amount</th>
+                        <th>Payment Type</th>
+                        <th>Payment Method</th>
+                        <th>Batch #</th>
+                        <th>Job Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for transaction in transactions %}
+                        <tr>
+                            <td>{{ transaction.trans_date.strftime("%Y-%m-%d") }}</td>
+                            <td>
+                                <a href="{{ url_for('donor', donor_id=transaction.donor.base_donor_id) }}" class="donor-link">
+                                    {{ transaction.donor.formatted_full_name or transaction.donor.first_name + ' ' + transaction.donor.last_name }}
+                                </a>
+                            </td>
+                            <td class="amount">${{ "%.2f"|format(transaction.trans_amount) }}</td>
+                            <td>{{ transaction.payment_type or "" }}</td>
+                            <td>{{ transaction.payment_method or "" }}</td>
+                            <td>{{ transaction.update_batch_num or "" }}</td>
+                            <td>
+                                {% if transaction.trans_date.year > 2018 and transaction.payment_type == "E" and transaction.bluebook_job_description == "DUES OR EAGLES" %}
+                                    PS EAGLES
+                                {% else %}
+                                    {{ transaction.bluebook_job_description or "" }}
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if total_pages > 1 %}
+            <div class="pagination">
+                <div class="pagination-info">
+                    Page {{ current_page }} of {{ total_pages }}
+                </div>
+                <form method="POST" style="display: flex; gap: 10px;">
+                    {# Preserve all search parameters #}
+                    {% for field, value in search_params.items() %}
+                        {% if value %}
+                            <input type="hidden" name="{{ field }}" value="{{ value }}">
+                        {% endif %}
+                    {% endfor %}
+
+                    <button type="submit" name="page" value="1" class="pagination-button" {% if current_page == 1 %}disabled{% endif %}>
+                        &laquo; First
+                    </button>
+                    
+                    <button type="submit" name="page" value="{{ current_page - 1 }}" class="pagination-button" {% if current_page == 1 %}disabled{% endif %}>
+                        &lsaquo; Previous
+                    </button>
+
+                    {% for page_num in range([1, current_page - 2]|max, [current_page + 3, total_pages + 1]|min) %}
+                        <button type="submit" name="page" value="{{ page_num }}" 
+                                class="pagination-button {% if page_num == current_page %}active{% endif %}">
+                            {{ page_num }}
+                        </button>
+                    {% endfor %}
+
+                    <button type="submit" name="page" value="{{ current_page + 1 }}" class="pagination-button" {% if current_page == total_pages %}disabled{% endif %}>
+                        Next &rsaquo;
+                    </button>
+                    
+                    <button type="submit" name="page" value="{{ total_pages }}" class="pagination-button" {% if current_page == total_pages %}disabled{% endif %}>
+                        Last &raquo;
+                    </button>
+                </form>
+            </div>
+        {% endif %}
+    {% elif search_performed %}
+        <p>No transactions found matching your search criteria.</p>
+    {% endif %}
+
+    <div class="search-tips">
+        <h3>Search Tips:</h3>
+        <ul>
+            <li>Leave date fields empty to search for all dates</li>
+            <li>Leave amount fields empty to search for all amounts</li>
+            <li>Use both date fields to search within a specific date range</li>
+            <li>Use both amount fields to search within a specific amount range</li>
+            <li>Appeal code, payment type, and other text fields support partial matches</li>
+            <li>Click on a donor's name to view their complete profile</li>
+        </ul>
+    </div>
+
+    <div style="margin-top: 20px;">
+        <a href="{{ url_for('home') }}" style="display: inline-block; color: #666; text-decoration: none; margin-right: 20px;">
+            &larr; Back to Donor Search
+        </a>
+        <a href="{{ url_for('batch_transactions') }}" style="display: inline-block; color: #007bff; text-decoration: none; padding: 8px 16px; border: 1px solid #007bff; border-radius: 4px;">
+            Batch Transactions
+        </a>
+    </div>
+</body>
+</html> 

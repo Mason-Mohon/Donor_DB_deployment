@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Donor Search</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+        .header-actions {
+            margin-bottom: 20px;
+            text-align: right;
+        }
+        .action-button {
+            background: #28a745; /* Green */
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            text-decoration: none; /* For links styled as buttons */
+            display: inline-block; /* For links styled as buttons */
+            margin-left: 10px;
+        }
+        .action-button:hover {
+            background: #218838;
+        }
+        .search-form {
+            background: #f5f5f5;
+            padding: 20px;
+            border-radius: 5px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: inline-block;
+            width: 120px;
+            margin-right: 10px;
+            color: #333;
+        }
+        input[type="text"],
+        input[type="number"],
+        input[type="email"],
+        input[type="date"] {
+            width: 250px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            font-size: 14px;
+        }
+        input[type="date"] {
+            width: 250px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .error-message {
+            background-color: #fee;
+            color: #c00;
+            padding: 10px;
+            border-radius: 3px;
+            margin-bottom: 15px;
+        }
+        .search-tips {
+            margin-top: 20px;
+            padding: 15px;
+            background: #e8f4ff;
+            border-radius: 5px;
+        }
+        .filter-section {
+            background: #fff;
+            padding: 20px;
+            margin: 15px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .filter-section h3 {
+            margin-top: 0;
+            margin-bottom: 20px;
+            color: #333;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        .checkbox-group {
+            margin-bottom: 10px;
+        }
+        .checkbox-group label {
+            width: auto;
+            cursor: pointer;
+        }
+        .checkbox-group input[type="checkbox"] {
+            margin-right: 5px;
+        }
+        .search-tips ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .search-tips li {
+            margin-bottom: 5px;
+            color: #666;
+        }
+        .alert {
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 3px;
+        }
+        .alert-warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+        .alert-error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
+</head>
+<body>
+    <h1>Donor Search</h1>
+
+    <div class="header-actions">
+        <a href="{{ url_for('transaction_search') }}" class="action-button" style="background: #007bff;">Transaction Search</a>
+        <a href="{{ url_for('batch_transactions') }}" class="action-button" style="background: #ffc107; color: #212529;">Batch Transactions</a>
+        <a href="{{ url_for('donor_quick_add') }}" class="action-button" style="background: #17a2b8; color: white;">Donor Quick Add</a>
+        <a href="{{ url_for('mailing_list_generator') }}" class="action-button" style="background: #6f42c1; color: white;">Mailing List</a>
+        <a href="{{ url_for('refresh_transactions') }}" class="action-button" style="background: #dc3545; color: white;">Refresh Transactions</a>
+        <a href="{{ url_for('add_donor') }}" class="action-button">Add New Donor</a>
+    </div>
+    
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    {% if error %}
+    <div class="error-message">
+        {{ error }}
+    </div>
+    {% endif %}
+    
+    <form method="POST" class="search-form">
+        <div class="filter-section">
+            <h3>Filter Options</h3>
+            <div class="checkbox-group">
+                <label>
+                    <input type="checkbox" name="exclude_deceased" value="true" {% if search_params.get('exclude_deceased') == 'true' %}checked{% endif %}>
+                    Exclude deceased or undeliverable donors
+                </label>
+            </div>
+            <div class="checkbox-group">
+                <label>
+                    <input type="checkbox" name="exclude_non_donors" value="true" {% if search_params.get('exclude_non_donors') == 'true' %}checked{% endif %}>
+                    Exclude non-donors (do not solicit)
+                </label>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="donor_id">Donor ID:</label>
+            <input type="number" id="donor_id" name="donor_id" value="{{ request.form.get('donor_id', '') }}">
+        </div>
+
+        <div class="form-group">
+            <label for="alternate_id">Alternate ID:</label>
+            <input type="text" id="alternate_id" name="alternate_id" value="{{ request.form.get('alternate_id', '') }}">
+        </div>
+
+        <div class="form-group">
+            <label for="first_name">First Name:</label>
+            <input type="text" id="first_name" name="first_name" value="{{ request.form.get('first_name', '') }}">
+        </div>
+
+        <div class="form-group">
+            <label for="last_name">Last Name:</label>
+            <input type="text" id="last_name" name="last_name" value="{{ request.form.get('last_name', '') }}">
+        </div>
+
+        <div class="form-group">
+            <label for="email">Email:</label>
+            <input type="email" id="email" name="email" value="{{ request.form.get('email', '') }}">
+        </div>
+
+        <div class="form-group">
+            <label for="city">City:</label>
+            <input type="text" id="city" name="city" value="{{ request.form.get('city', '') }}" placeholder="Chicago, New York, LA (comma-separated)">
+            <small style="color: #666; display: block; margin-top: 2px;">Supports multiple cities separated by commas</small>
+        </div>
+
+        <div class="form-group">
+            <label for="state">State:</label>
+            <input type="text" id="state" name="state" value="{{ request.form.get('state', '') }}" placeholder="MO, IL, CA (comma-separated)">
+            <small style="color: #666; display: block; margin-top: 2px;">2-letter state codes, supports multiple states</small>
+        </div>
+
+        <div class="form-group">
+            <label for="zip_code">ZIP Code:</label>
+            <input type="text" id="zip_code" name="zip_code" value="{{ request.form.get('zip_code', '') }}" placeholder="63101, 90210, 10001 (comma-separated)">
+            <small style="color: #666; display: block; margin-top: 2px;">Supports multiple ZIP codes separated by commas</small>
+        </div>
+
+        <div class="form-group">
+            <label for="phone">Phone:</label>
+            <input type="text" id="phone" name="phone" value="{{ request.form.get('phone', '') }}">
+        </div>
+
+        <div class="form-section">
+            <h3>Status Filters</h3>
+            <div class="form-group">
+                <label for="newsletter_status">Newsletter Status:</label>
+                <input type="text" id="newsletter_status" name="newsletter_status" value="{{ search_params.get('newsletter_status', '') }}" placeholder="A, L, X (comma-separated)">
+                <small style="color: #666; display: block; margin-top: 2px;">A=Current Subscriber, L=Lifetime, X=Expired, M=Mutiny, E=Exempt, D=Deceased</small>
+            </div>
+
+            <div class="form-group">
+                <label for="donor_status">Donor Status:</label>
+                <input type="text" id="donor_status" name="donor_status" value="{{ search_params.get('donor_status', '') }}" placeholder="A, X (comma-separated)">
+                <small style="color: #666; display: block; margin-top: 2px;">A=Active, X=Expired, etc. (supports multiple values)</small>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h3>Amount and Date Ranges</h3>
+            <div class="form-group">
+                <label for="total_amount_range">Total Donation Amount:</label>
+                <input type="text" id="total_amount_range" name="total_amount_range" value="{{ search_params.get('total_amount_range', '') }}" placeholder="100 to 5000 or 1000">
+                <small style="color: #666; display: block; margin-top: 2px;">Examples: "1000", "100 to 5000", "500 to"</small>
+            </div>
+
+            <div class="form-group">
+                <label for="date_added_range">Date Added to Database:</label>
+                <input type="text" id="date_added_range" name="date_added_range" value="{{ search_params.get('date_added_range', '') }}" placeholder="2020-01-01 to 2023-12-31">
+                <small style="color: #666; display: block; margin-top: 2px;">Examples: "2023-01-01", "2020-01-01 to 2023-12-31"</small>
+            </div>
+
+            <div class="form-group">
+                <label for="expiration_date_range">Subscription Expiration:</label>
+                <input type="text" id="expiration_date_range" name="expiration_date_range" value="{{ search_params.get('expiration_date_range', '') }}" placeholder="2024-01-01 to 2024-12-31">
+                <small style="color: #666; display: block; margin-top: 2px;">Find expired or soon-to-expire subscriptions</small>
+            </div>
+        </div>
+
+        <div class="filter-section">
+            <h3>Transaction Search</h3>
+            <div class="form-group">
+                <label for="trans_date">Transaction Date:</label>
+                <input type="date" id="trans_date" name="trans_date" value="{{ request.form.get('trans_date', '') }}">
+            </div>
+
+            <div class="form-group">
+                <label for="trans_amount">Transaction Amount:</label>
+                <input type="number" step="0.01" id="trans_amount" name="trans_amount" value="{{ request.form.get('trans_amount', '') }}">
+            </div>
+
+            <div class="form-group">
+                <label for="appeal_code">Appeal Code:</label>
+                <input type="text" id="appeal_code" name="appeal_code" value="{{ request.form.get('appeal_code', '') }}">
+            </div>
+
+            <div class="form-group">
+                <label for="payment_type">Payment Type:</label>
+                <input type="text" id="payment_type" name="payment_type" value="{{ request.form.get('payment_type', '') }}">
+            </div>
+
+            <div class="form-group">
+                <label for="update_batch_num">Update Batch #:</label>
+                <input type="text" id="update_batch_num" name="update_batch_num" value="{{ request.form.get('update_batch_num', '') }}">
+            </div>
+
+            <div class="form-group">
+                <label for="bluebook_job_description">Job Description:</label>
+                <input type="text" id="bluebook_job_description" name="bluebook_job_description" value="{{ request.form.get('bluebook_job_description', '') }}">
+            </div>
+
+            <div class="form-group">
+                <label for="bluebook_list_description">List Description:</label>
+                <input type="text" id="bluebook_list_description" name="bluebook_list_description" value="{{ request.form.get('bluebook_list_description', '') }}">
+            </div>
+        </div>
+
+        <button type="submit">Search</button>
+    </form>
+
+    <div class="search-tips">
+        <h3>Search Tips:</h3>
+        <ul>
+            <li><strong>Multiple Values:</strong> Use commas to search multiple values in the same field (e.g., "MO, IL, CA" for states or "63101, 90210" for ZIP codes)</li>
+            <li><strong>Date Ranges:</strong> Use "YYYY-MM-DD to YYYY-MM-DD" format or single dates (e.g., "2023-01-01 to 2023-12-31")</li>
+            <li><strong>Amount Ranges:</strong> Use "100 to 5000" for ranges, or single amounts (e.g., "1000")</li>
+            <li><strong>Status Filtering:</strong> Search by donor status alone (e.g., "A" for active donors only)</li>
+            <li><strong>Partial matches:</strong> Supported for text fields like names, cities, appeal codes</li>
+            <li><strong>Phone search:</strong> Looks in main, work, and cell phone fields</li>
+            <li><strong>Default filters:</strong> Deceased/undeliverable donors and non-donors are excluded by default</li>
+            <li><strong>Transaction search:</strong> Date must be YYYY-MM-DD format, amount must be exact match</li>
+        </ul>
+    </div>
+</body>
+</html>

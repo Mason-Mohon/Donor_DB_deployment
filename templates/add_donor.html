@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Add New Donor</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 900px; margin: 20px auto; padding: 0 20px; line-height: 1.6; }
+        .form-container { background: #f9f9f9; padding: 25px; border-radius: 8px; box-shadow: 0 0 15px rgba(0,0,0,0.1); }
+        h1 { text-align: center; color: #333; margin-bottom: 25px; }
+        .form-section { margin-bottom: 20px; padding: 15px; border: 1px solid #e0e0e0; border-radius: 5px; background-color: #fff; }
+        .form-section h2 { margin-top: 0; color: #555; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 15px; font-size: 1.2em; }
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; }
+        .form-group { display: flex; flex-direction: column; }
+        .form-group label { font-weight: bold; color: #333; margin-bottom: 5px; font-size: 0.9em; }
+        .form-group input[type="text"],
+        .form-group input[type="email"],
+        .form-group input[type="date"],
+        .form-group input[type="tel"],
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 0.95em;
+        }
+        .form-group textarea { min-height: 80px; resize: vertical; }
+        .form-group small { font-size: 0.8em; color: #666; margin-top: 5px; display: block; }
+        .form-actions { text-align: right; margin-top: 30px; }
+        .form-actions button {
+            background-color: #28a745; color: white; padding: 12px 25px; border: none;
+            border-radius: 5px; cursor: pointer; font-size: 1em; transition: background-color 0.3s ease;
+        }
+        .form-actions button:hover { background-color: #218838; }
+        .back-link {
+            display: inline-block; margin-bottom:20px; color: #007bff; text-decoration: none;
+            padding: 8px 15px; border: 1px solid #007bff; border-radius: 5px;
+        }
+        .back-link:hover { background-color: #e8f4ff; }
+        .alert { padding: 10px; margin-bottom: 15px; border-radius: 4px; }
+        .alert-error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .alert-success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    </style>
+</head>
+<body>
+    <a href="{{ url_for('home') }}" class="back-link">&larr; Back to Search</a>
+    <div class="form-container">
+        <h1>Add New Donor</h1>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST">
+            <div class="form-section">
+                <h2>Basic Information</h2>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="base_donor_id">Donor ID <span style="color:red;">*</span></label>
+                        <input type="number" id="base_donor_id" name="base_donor_id" value="{{ donor.base_donor_id or '' }}" required min="1">
+                        <small>Auto-filled with next available ID. You can change this if needed.</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="first_name">First Name</label>
+                        <input type="text" id="first_name" name="first_name" value="{{ donor.first_name or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="last_name">Last Name <span style="color:red;">*</span></label>
+                        <input type="text" id="last_name" name="last_name" value="{{ donor.last_name or '' }}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="name_prefix">Prefix</label>
+                        <input type="text" id="name_prefix" name="name_prefix" value="{{ donor.name_prefix or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="suffix">Suffix</label>
+                        <input type="text" id="suffix" name="suffix" value="{{ donor.suffix or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="formatted_full_name">Formatted Full Name (if different)</label>
+                        <input type="text" id="formatted_full_name" name="formatted_full_name" value="{{ donor.formatted_full_name or '' }}">
+                    </div>
+                     <div class="form-group">
+                        <label for="alternate_id">Alternate ID</label>
+                        <input type="text" id="alternate_id" name="alternate_id" value="{{ donor.alternate_id or '' }}">
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h2>Secondary Addressee (Spouse, etc.)</h2>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="secondary_title">Title</label>
+                        <input type="text" id="secondary_title" name="secondary_title" value="{{ donor.secondary_title or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="secondary_first_name">First Name</label>
+                        <input type="text" id="secondary_first_name" name="secondary_first_name" value="{{ donor.secondary_first_name or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="secondary_last_name">Last Name</label>
+                        <input type="text" id="secondary_last_name" name="secondary_last_name" value="{{ donor.secondary_last_name or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="secondary_suffix">Suffix</label>
+                        <input type="text" id="secondary_suffix" name="secondary_suffix" value="{{ donor.secondary_suffix or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="secondary_full_name">Formatted Full Name (if different)</label>
+                        <input type="text" id="secondary_full_name" name="secondary_full_name" value="{{ donor.secondary_full_name or '' }}">
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h2>Contact Information</h2>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="email_address">Email Address</label>
+                        <input type="email" id="email_address" name="email_address" value="{{ donor.email_address or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="phone">Primary Phone</label>
+                        <input type="tel" id="phone" name="phone" value="{{ donor.phone or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="work_phone">Work Phone</label>
+                        <input type="tel" id="work_phone" name="work_phone" value="{{ donor.work_phone or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="cell_phone">Cell Phone</label>
+                        <input type="tel" id="cell_phone" name="cell_phone" value="{{ donor.cell_phone or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="address_1_company">Company Name / Address Line 1</label>
+                        <input type="text" id="address_1_company" name="address_1_company" value="{{ donor.address_1_company or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="address_2_secondary">Address Line 2</label>
+                        <input type="text" id="address_2_secondary" name="address_2_secondary" value="{{ donor.address_2_secondary or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="address_3_primary">Address Line 3</label>
+                        <input type="text" id="address_3_primary" name="address_3_primary" value="{{ donor.address_3_primary or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="city">City</label>
+                        <input type="text" id="city" name="city" value="{{ donor.city or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="state">State (2-letter code)</label>
+                        <input type="text" id="state" name="state" maxlength="2" value="{{ donor.state or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="zip_plus4">ZIP Code (+4 optional)</label>
+                        <input type="text" id="zip_plus4" name="zip_plus4" value="{{ donor.zip_plus4 or '' }}">
+                    </div>
+                     <div class="form-group">
+                        <label for="twitter">Twitter Handle</label>
+                        <input type="text" id="twitter" name="twitter" value="{{ donor.twitter or '' }}">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-section">
+                <h2>Salutation & Notes</h2>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="salutation_dear">Salutation (e.g., Dear John and Jane)</label>
+                        <input type="text" id="salutation_dear" name="salutation_dear" value="{{ donor.salutation_dear or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="removal_request_note">Removal Request / Notes</label>
+                        <textarea id="removal_request_note" name="removal_request_note">{{ donor.removal_request_note or '' }}</textarea>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h2>Personal & Status Information</h2>
+                 <div class="form-grid">
+                    <div class="form-group">
+                        <label for="birth_date">Birth Date</label>
+                        <input type="date" id="birth_date" name="birth_date" value="{{ donor.birth_date or '' }}">
+                    </div>
+                     <div class="form-group">
+                        <label for="gender_code">Gender Code</label>
+                        <input type="text" id="gender_code" name="gender_code" value="{{ donor.gender_code or '' }}" maxlength="1">
+                    </div>
+                    <div class="form-group">
+                        <label for="date_added_to_database">Date Added to Database (YYYY-MM-DD)</label>
+                        <input type="date" id="date_added_to_database" name="date_added_to_database" value="{{ donor.date_added_to_database or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="expiration_date">Membership/Subscription Expiration Date</label>
+                        <input type="date" id="expiration_date" name="expiration_date" value="{{ donor.expiration_date or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="donor_status">Donor Status Code</label>
+                        <input type="text" id="donor_status" name="donor_status" value="{{ donor.donor_status or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="donor_status_desc">Donor Status Description</label>
+                        <input type="text" id="donor_status_desc" name="donor_status_desc" value="{{ donor.donor_status_desc or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="newsletter_status">Newsletter Status Code</label>
+                        <input type="text" id="newsletter_status" name="newsletter_status" value="{{ donor.newsletter_status or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="newsletter_status_desc">Newsletter Status Description</label>
+                        <input type="text" id="newsletter_status_desc" name="newsletter_status_desc" value="{{ donor.newsletter_status_desc or '' }}">
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h2>Interests</h2>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="interest_borders">Borders</label>
+                        <input type="text" id="interest_borders" name="interest_borders" value="{{ donor.interest_borders or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="interest_pro_life">Pro-Life</label>
+                        <input type="text" id="interest_pro_life" name="interest_pro_life" value="{{ donor.interest_pro_life or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="interest_eagle_council">Eagle Council</label>
+                        <input type="text" id="interest_eagle_council" name="interest_eagle_council" value="{{ donor.interest_eagle_council or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="interest_topic_1">Topic 1</label>
+                        <input type="text" id="interest_topic_1" name="interest_topic_1" value="{{ donor.interest_topic_1 or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="interest_topic_2">Topic 2</label>
+                        <input type="text" id="interest_topic_2" name="interest_topic_2" value="{{ donor.interest_topic_2 or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="interest_topic_3">Topic 3</label>
+                        <input type="text" id="interest_topic_3" name="interest_topic_3" value="{{ donor.interest_topic_3 or '' }}">
+                    </div>
+                     <div class="form-group">
+                        <label for="interest_topic_4">Topic 4</label>
+                        <input type="text" id="interest_topic_4" name="interest_topic_4" value="{{ donor.interest_topic_4 or '' }}">
+                    </div>
+                     <div class="form-group">
+                        <label for="interest">General Interest Field</label>
+                        <input type="text" id="interest" name="interest" value="{{ donor.interest or '' }}">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-section">
+                <h2>Other Statuses/Info</h2>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="education_reporter_status">Education Reporter Status</label>
+                        <input type="text" id="education_reporter_status" name="education_reporter_status" value="{{ donor.education_reporter_status or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="news_and_notes_status">News & Notes Status</label>
+                        <input type="text" id="news_and_notes_status" name="news_and_notes_status" value="{{ donor.news_and_notes_status or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="rnc_life_status">RNC Life Status</label>
+                        <input type="text" id="rnc_life_status" name="rnc_life_status" value="{{ donor.rnc_life_status or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="eagle_status">Eagle Status</label>
+                        <input type="text" id="eagle_status" name="eagle_status" value="{{ donor.eagle_status or '' }}">
+                    </div>
+                     <div class="form-group">
+                        <label for="eagle_state_president">Eagle State President</label>
+                        <input type="text" id="eagle_state_president" name="eagle_state_president" value="{{ donor.eagle_state_president or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="house_publications">House Publications</label>
+                        <input type="text" id="house_publications" name="house_publications" value="{{ donor.house_publications or '' }}">
+                    </div>
+                     <div class="form-group">
+                        <label for="flag">Flag</label>
+                        <input type="text" id="flag" name="flag" value="{{ donor.flag or '' }}">
+                    </div>
+                     <div class="form-group">
+                        <label for="changed">Changed Indicator</label> <!-- Or more descriptive name based on its use -->
+                        <input type="text" id="changed" name="changed" value="{{ donor.changed or '' }}">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Donation summary fields (latest_amount, total_dollar_amount, etc.) are typically not manually entered here.
+                 They are calculated based on transactions. -->
+
+            <div class="form-actions">
+                <button type="submit">Add Donor</button>
+            </div>
+        </form>
+    </div>
+</body>
+</html> 

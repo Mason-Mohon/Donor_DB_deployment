@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Refresh Transaction Data</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+        .header-actions {
+            margin-bottom: 20px;
+            text-align: right;
+        }
+        .action-button {
+            background: #007bff;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            margin-left: 10px;
+        }
+        .action-button:hover {
+            background: #0056b3;
+        }
+        .warning-box {
+            background: #fff3cd;
+            color: #856404;
+            padding: 20px;
+            border: 1px solid #ffeeba;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .info-box {
+            background: #d1ecf1;
+            color: #0c5460;
+            padding: 20px;
+            border: 1px solid #bee5eb;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .success-box {
+            background: #d4edda;
+            color: #155724;
+            padding: 20px;
+            border: 1px solid #c3e6cb;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .error-box {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 20px;
+            border: 1px solid #f5c6cb;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .confirmation-form {
+            background: #f5f5f5;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .refresh-button {
+            background: #dc3545;
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        .refresh-button:hover {
+            background: #c82333;
+        }
+        .stats {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .stats-item {
+            display: inline-block;
+            margin-right: 30px;
+            font-weight: bold;
+        }
+        .alert {
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 3px;
+        }
+        .alert-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .alert-error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
+</head>
+<body>
+    <h1>Refresh Transaction Data</h1>
+
+    <div class="header-actions">
+        <a href="{{ url_for('home') }}" class="action-button">Back to Search</a>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    {% if refresh_completed %}
+        <div class="success-box">
+            <h3>✅ Transaction Refresh Completed Successfully!</h3>
+            
+            <div class="stats">
+                <div class="stats-item">Processed: {{ processed_count }} transactions</div>
+                <div class="stats-item">Updated: {{ updated_count }} donors</div>
+                {% if cutoff_date %}<div class="stats-item">Since: {{ cutoff_date }}</div>{% endif %}
+            </div>
+            
+            <p>The transaction refresh has been completed. All qualifying donor records have been updated with their latest transaction information.</p>
+            
+            <a href="{{ url_for('refresh_transactions') }}" class="action-button">Run Another Refresh</a>
+        </div>
+    {% else %}
+        <div class="info-box">
+            <h3>About Transaction Refresh</h3>
+            <p>This feature updates donor summary information based on recent transactions. It will:</p>
+            <ul>
+                <li><strong>Process recent transactions:</strong> Find all transactions within the specified time period</li>
+                <li><strong>Update affected donors:</strong> Update summary fields for donors who have transactions in that period</li>
+                <li><strong>Update fields:</strong> Latest transaction, largest transaction, inception transaction, total amounts, and response counts</li>
+                <li><strong>Efficient processing:</strong> Only processes donors with recent activity, avoiding timeouts</li>
+            </ul>
+        </div>
+
+        <div class="warning-box">
+            <h3>⚠️ Important Warning</h3>
+            <p><strong>This operation will modify donor records in the database.</strong></p>
+            <ul>
+                <li>This process is much more efficient and faster than the previous approach</li>
+                <li>Only donors with transactions in the selected time period will be updated</li>
+                <li>The operation processes transactions in batches for optimal performance</li>
+                <li>Make sure you have a recent database backup before proceeding</li>
+            </ul>
+        </div>
+
+        <form method="POST" class="confirmation-form">
+            <h3>Confirm Transaction Refresh</h3>
+            <p>This will process transactions from the last specified number of days and update the affected donors' summary fields.</p>
+            
+            <div style="margin: 15px 0;">
+                <label for="cutoff_days" style="display: inline-block; width: 200px; font-weight: bold;">Process transactions from last:</label>
+                <select id="cutoff_days" name="cutoff_days" style="padding: 5px; font-size: 14px;">
+                    <option value="7">7 days</option>
+                    <option value="14">14 days</option>
+                    <option value="30" selected>30 days</option>
+                    <option value="60">60 days</option>
+                    <option value="90">90 days</option>
+                    <option value="180">6 months</option>
+                    <option value="365">1 year</option>
+                </select>
+            </div>
+            
+            <button type="submit" class="refresh-button" onclick="return confirm('Are you sure you want to refresh transaction data? This will modify donor records in the database.')">
+                Start Transaction Refresh
+            </button>
+        </form>
+
+        <div class="info-box">
+            <h4>What Gets Updated:</h4>
+            <ul>
+                <li><strong>Latest Transaction:</strong> Date and amount of most recent donation</li>
+                <li><strong>Largest Transaction:</strong> Date and amount of largest donation</li>
+                <li><strong>Inception Transaction:</strong> Date and amount of first donation</li>
+                <li><strong>Total Dollar Amount:</strong> Sum of all donations</li>
+                <li><strong>Response Counts:</strong> Total number of transactions (including and excluding $0 amounts)</li>
+            </ul>
+        </div>
+    {% endif %}
+</body>
+</html> 

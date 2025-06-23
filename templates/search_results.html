@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Search Results</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 100%;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+        .search-summary {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .table-container {
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            font-size: 13px;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+            white-space: nowrap;
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        th {
+            background-color: #f5f5f5;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+        tr:hover {
+            background-color: #f9f9f9;
+        }
+        .donor-link {
+            color: #007bff;
+            text-decoration: none;
+        }
+        .donor-link:hover {
+            text-decoration: underline;
+        }
+        .back-link {
+            display: inline-block;
+            margin: 20px 0;
+            color: #666;
+            text-decoration: none;
+        }
+        .back-link:hover {
+            color: #333;
+        }
+        .controls-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin: 20px 0;
+            gap: 20px;
+        }
+        .search-refinement {
+            flex: 1;
+            background: #fff;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .hidden-columns {
+            background: #fff;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            min-width: 200px;
+        }
+        .hidden-column-tag {
+            display: inline-block;
+            background: #e9ecef;
+            padding: 4px 8px;
+            margin: 2px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .hidden-column-tag:hover {
+            background: #dee2e6;
+        }
+        .column-toggle {
+            cursor: pointer;
+            padding: 2px 4px;
+            font-size: 11px;
+            color: #666;
+            margin-left: 5px;
+            text-decoration: none;
+        }
+        .column-toggle:hover {
+            color: #dc3545;
+        }
+        .search-form {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+        .form-group {
+            flex: 1;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 12px;
+            color: #666;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 6px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+        }
+        .search-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 7px 15px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .search-button:hover {
+            background: #0056b3;
+        }
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 20px 0;
+            gap: 10px;
+        }
+        .pagination-info {
+            color: #666;
+            margin-right: 20px;
+        }
+        .pagination-button {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            background: #fff;
+            color: #333;
+            text-decoration: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .pagination-button:hover {
+            background: #f5f5f5;
+        }
+        .pagination-button.active {
+            background: #007bff;
+            color: white;
+            border-color: #007bff;
+        }
+        .pagination-button.disabled {
+            color: #999;
+            cursor: not-allowed;
+            background: #f5f5f5;
+        }
+        .download-buttons {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        .download-button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: white;
+        }
+        .download-button.csv {
+            background-color: #28a745;
+        }
+        .download-button.csv:hover {
+            background-color: #218838;
+        }
+        .download-button.pdf {
+            background-color: #dc3545;
+        }
+        .download-button.pdf:hover {
+            background-color: #c82333;
+        }
+        .column-selector {
+            display: none;
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 20px;
+            margin-top: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .column-selector.active {
+            display: block;
+        }
+        .column-selector h4 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: #333;
+        }
+        .column-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .column-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 5px;
+        }
+        .column-checkbox label {
+            cursor: pointer;
+            font-size: 13px;
+            margin: 0;
+            flex: 1;
+        }
+        .column-checkbox input[type="checkbox"] {
+            margin: 0;
+        }
+        .column-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .select-all-btn, .select-none-btn, .select-default-btn {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .select-all-btn:hover, .select-none-btn:hover, .select-default-btn:hover {
+            background: #5a6268;
+        }
+        .download-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+        .cancel-btn {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .cancel-btn:hover {
+            background: #5a6268;
+        }
+    </style>
+</head>
+<body>
+    <h1>Search Results</h1>
+    
+    <div class="search-summary">
+        <h3>Search Criteria:</h3>
+        <ul>
+            {% for field, value in search_params.items() %}
+                {% if value and field not in ['exclude_deceased', 'exclude_non_donors', 'hidden_columns'] %}
+                    {% if field.startswith('trans_') %}
+                        <li><strong>Transaction {{ field[6:]|replace('_', ' ')|title }}:</strong> 
+                            {% if field == 'trans_amount' %}
+                                ${{ value }}
+                            {% else %}
+                                {{ value }}
+                            {% endif %}
+                        </li>
+                    {% elif field in ['appeal_code', 'payment_type', 'update_batch_num', 'bluebook_job_description', 'bluebook_list_description'] %}
+                        <li><strong>Transaction {{ field|replace('_', ' ')|title }}:</strong> {{ value }}</li>
+                    {% elif field.endswith('_range') %}
+                        <li><strong>{{ field[:-6]|replace('_', ' ')|title }} Range:</strong> {{ value }}</li>
+                    {% elif field in ['donor_status', 'newsletter_status'] %}
+                        <li><strong>{{ field|replace('_', ' ')|title }}:</strong> {{ value }} {% if ',' in value %}<em>(multiple values)</em>{% endif %}</li>
+                    {% elif field in ['city', 'state', 'zip_code'] and ',' in value %}
+                        <li><strong>{{ field|replace('_', ' ')|title }}:</strong> {{ value }} <em>(multiple values)</em></li>
+                    {% else %}
+                        <li><strong>{{ field|replace('_', ' ')|title }}:</strong> {{ value }}</li>
+                    {% endif %}
+                {% endif %}
+            {% endfor %}
+            
+            {% if search_params.get('exclude_deceased') == 'true' %}
+                <li><em>Excluding deceased or undeliverable donors</em></li>
+            {% endif %}
+            {% if search_params.get('exclude_non_donors') == 'true' %}
+                <li><em>Excluding non-donors (do not solicit)</em></li>
+            {% endif %}
+        </ul>
+        <p><strong>Found:</strong> {{ total_results }} donor(s)</p>
+        {% if total_results > 50 %}
+            <p><em>Showing {{ (current_page - 1) * 50 + 1 }} to {{ [current_page * 50, total_results]|min }} of {{ total_results }} results</em></p>
+        {% endif %}
+
+        {% if donors %}
+            <div class="download-buttons">
+                <button type="button" class="download-button csv" onclick="showColumnSelector('csv')">
+                    Download as CSV
+                </button>
+                <button type="button" class="download-button pdf" onclick="showColumnSelector('pdf')">
+                    Download as PDF
+                </button>
+            </div>
+
+            <div id="column-selector" class="column-selector">
+                <h4>Select Columns to Include in Report</h4>
+                <div class="column-actions">
+                    <button type="button" class="select-all-btn" onclick="selectAllColumns()">Select All</button>
+                    <button type="button" class="select-none-btn" onclick="selectNoColumns()">Select None</button>
+                    <button type="button" class="select-default-btn" onclick="selectDefaultColumns()">Select Default</button>
+                </div>
+                <div id="column-count-info" style="background: #e8f4ff; padding: 8px; border-radius: 3px; margin-bottom: 15px; font-size: 12px;">
+                    <strong>Column Count:</strong> <span id="selected-count">7</span> selected
+                    <br><span id="page-size-info">📄 Will use Letter size (recommended for up to 6 columns)</span>
+                </div>
+                
+                <form id="download-form" method="POST" action="">
+                    {% for field, value in search_params.items() %}
+                        {% if value %}
+                            <input type="hidden" name="{{ field }}" value="{{ value }}">
+                        {% endif %}
+                    {% endfor %}
+                    
+                    <div class="column-grid">
+                        {% set all_columns = {
+                            'base_donor_id': 'Donor ID',
+                            'old_donor_id': 'Legacy Donor ID',
+                            'alternate_id': 'Alternate ID',
+                            'name_prefix': 'Name Prefix',
+                            'first_name': 'First Name',
+                            'last_name': 'Last Name',
+                            'suffix': 'Suffix',
+                            'formatted_full_name': 'Full Name',
+                            'secondary_title': 'Secondary Title',
+                            'secondary_first_name': 'Secondary First Name',
+                            'secondary_last_name': 'Secondary Last Name',
+                            'secondary_suffix': 'Secondary Suffix',
+                            'secondary_full_name': 'Secondary Full Name',
+                            'address_1_company': 'Company',
+                            'address_2_secondary': 'Address Secondary',
+                            'address_3_primary': 'Address Primary',
+                            'city': 'City',
+                            'state': 'State',
+                            'zip_plus4': 'ZIP+4',
+                            'phone': 'Phone',
+                            'work_phone': 'Work Phone',
+                            'cell_phone': 'Cell Phone',
+                            'salutation_dear': 'Salutation',
+                            'removal_request_note': 'Removal Request',
+                            'twitter': 'Twitter',
+                            'gender_code': 'Gender',
+                            'birth_date': 'Birth Date',
+                            'newsletter_status': 'Newsletter Status',
+                            'newsletter_status_desc': 'Newsletter Status Desc',
+                            'donor_status': 'Donor Status',
+                            'donor_status_desc': 'Donor Status Desc',
+                            'date_added_to_database': 'Date Added',
+                            'email_address': 'Email',
+                            'interest_borders': 'Interests - Borders',
+                            'interest_pro_life': 'Interests - Pro Life',
+                            'interest_eagle_council': 'Interests - Eagle Council',
+                            'interest_topic_1': 'Interest Topic 1',
+                            'interest_topic_2': 'Interest Topic 2',
+                            'interest_topic_3': 'Interest Topic 3',
+                            'interest_topic_4': 'Interest Topic 4',
+                            'education_reporter_status': 'Education Reporter Status',
+                            'expiration_date': 'Expiration Date',
+                            'news_and_notes_status': 'News Notes Status',
+                            'rnc_life_status': 'RNC Life Status',
+                            'eagle_status': 'Eagle Status',
+                            'eagle_state_president': 'Eagle State President',
+                            'flag': 'Flag',
+                            'changed': 'Changed',
+                            'interest': 'Interest',
+                            'house_publications': 'House Publications',
+                            'latest_date': 'Latest Date',
+                            'latest_amount': 'Latest Amount',
+                            'largest_date': 'Largest Date',
+                            'largest_amount': 'Largest Amount',
+                            'inception_date': 'Inception Date',
+                            'inception_amount': 'Inception Amount',
+                            'total_dollar_amount': 'Total Amount',
+                            'total_responses_non_zero': 'Total Responses (Non-Zero)',
+                            'total_responses_includes_zero': 'Total Responses'
+                        } %}
+                        
+                        {% for col_id, col_name in all_columns.items() %}
+                            <div class="column-checkbox">
+                                <input type="checkbox" name="selected_columns" value="{{ col_id }}" id="col_{{ col_id }}"
+                                       {% if col_id in ['base_donor_id', 'first_name', 'last_name', 'email_address', 'city', 'state', 'total_dollar_amount'] %}checked{% endif %}>
+                                <label for="col_{{ col_id }}">{{ col_name }}</label>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="download-actions">
+                        <button type="button" class="cancel-btn" onclick="hideColumnSelector()">Cancel</button>
+                        <button type="submit" class="download-button csv" id="download-btn">Download</button>
+                    </div>
+                </form>
+            </div>
+        {% endif %}
+    </div>
+
+    <div class="controls-container">
+        <div class="search-refinement">
+            <h3>Refine Search</h3>
+            <form method="POST" action="{{ url_for('refine_search') }}" class="search-form">
+                {% for field, value in search_params.items() %}
+                    {% if value %}
+                        <input type="hidden" name="current_{{ field }}" value="{{ value }}">
+                    {% endif %}
+                {% endfor %}
+                
+                <div class="form-group">
+                    <label for="field">Field</label>
+                    <select name="field" id="field" required>
+                        <option value="">Select field...</option>
+                        <option value="first_name">First Name</option>
+                        <option value="last_name">Last Name</option>
+                        <option value="email">Email</option>
+                        <option value="city">City (supports multiple)</option>
+                        <option value="state">State (supports multiple)</option>
+                        <option value="zip_code">ZIP Code (supports multiple)</option>
+                        <option value="phone">Phone</option>
+                        <option value="donor_status">Donor Status (supports multiple)</option>
+                        <option value="newsletter_status">Newsletter Status (supports multiple)</option>
+                        <option value="total_amount_range">Total Amount Range</option>
+                        <option value="date_added_range">Date Added Range</option>
+                        <option value="expiration_date_range">Expiration Date Range</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="value">Value</label>
+                    <input type="text" name="value" id="value" required>
+                </div>
+                <button type="submit" class="search-button">Add Filter</button>
+            </form>
+        </div>
+
+        <div class="hidden-columns">
+            <h3>Hidden Columns</h3>
+            <div id="hidden-columns-list">
+                {% if search_params.get('hidden_columns') %}
+                    {% for column in search_params.get('hidden_columns').split(',') %}
+                        {% if column %}
+                            <form method="POST" action="{{ url_for('toggle_column') }}" style="display: inline;">
+                                {% for field, value in search_params.items() %}
+                                    {% if value %}
+                                        <input type="hidden" name="current_{{ field }}" value="{{ value }}">
+                                    {% endif %}
+                                {% endfor %}
+                                <input type="hidden" name="column_id" value="{{ column }}">
+                                <input type="hidden" name="action" value="show">
+                                <button type="submit" class="hidden-column-tag">
+                                    {{ column|replace('_', ' ')|title }} &#x2715;
+                                </button>
+                            </form>
+                        {% endif %}
+                    {% endfor %}
+                {% else %}
+                    <em>No hidden columns</em>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {% if donors %}
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        {% set all_columns = {
+                            'base_donor_id': 'Donor ID',
+                            'old_donor_id': 'Legacy Donor ID',
+                            'alternate_id': 'Alternate ID',
+                            'name_prefix': 'Name Prefix',
+                            'first_name': 'First Name',
+                            'last_name': 'Last Name',
+                            'suffix': 'Suffix',
+                            'formatted_full_name': 'Full Name',
+                            'secondary_title': 'Secondary Title',
+                            'secondary_first_name': 'Secondary First Name',
+                            'secondary_last_name': 'Secondary Last Name',
+                            'secondary_suffix': 'Secondary Suffix',
+                            'secondary_full_name': 'Secondary Full Name',
+                            'address_1_company': 'Company',
+                            'address_2_secondary': 'Address Secondary',
+                            'address_3_primary': 'Address Primary',
+                            'city': 'City',
+                            'state': 'State',
+                            'zip_plus4': 'ZIP+4',
+                            'phone': 'Phone',
+                            'work_phone': 'Work Phone',
+                            'cell_phone': 'Cell Phone',
+                            'salutation_dear': 'Salutation',
+                            'removal_request_note': 'Removal Request',
+                            'twitter': 'Twitter',
+                            'gender_code': 'Gender',
+                            'birth_date': 'Birth Date',
+                            'newsletter_status': 'Newsletter Status',
+                            'newsletter_status_desc': 'Newsletter Status Desc',
+                            'donor_status': 'Donor Status',
+                            'donor_status_desc': 'Donor Status Desc',
+                            'date_added_to_database': 'Date Added',
+                            'email_address': 'Email',
+                            'interest_borders': 'Interests - Borders',
+                            'interest_pro_life': 'Interests - Pro Life',
+                            'interest_eagle_council': 'Interests - Eagle Council',
+                            'interest_topic_1': 'Interest Topic 1',
+                            'interest_topic_2': 'Interest Topic 2',
+                            'interest_topic_3': 'Interest Topic 3',
+                            'interest_topic_4': 'Interest Topic 4',
+                            'education_reporter_status': 'Education Reporter Status',
+                            'expiration_date': 'Expiration Date',
+                            'news_and_notes_status': 'News Notes Status',
+                            'rnc_life_status': 'RNC Life Status',
+                            'eagle_status': 'Eagle Status',
+                            'eagle_state_president': 'Eagle State President',
+                            'flag': 'Flag',
+                            'changed': 'Changed',
+                            'interest': 'Interest',
+                            'house_publications': 'House Publications',
+                            'latest_date': 'Latest Date',
+                            'latest_amount': 'Latest Amount',
+                            'largest_date': 'Largest Date',
+                            'largest_amount': 'Largest Amount',
+                            'inception_date': 'Inception Date',
+                            'inception_amount': 'Inception Amount',
+                            'total_dollar_amount': 'Total Amount',
+                            'total_responses_non_zero': 'Total Responses (Non-Zero)',
+                            'total_responses_includes_zero': 'Total Responses'
+                        } %}
+                        {% set hidden_columns = search_params.get('hidden_columns', '').split(',') %}
+                        {% for col_id, col_name in all_columns.items() %}
+                            {% if col_id not in hidden_columns %}
+                                <th>
+                                    {{ col_name }}
+                                    <form method="POST" action="{{ url_for('toggle_column') }}" style="display: inline;">
+                                        {% for field, value in search_params.items() %}
+                                            {% if value %}
+                                                <input type="hidden" name="current_{{ field }}" value="{{ value }}">
+                                            {% endif %}
+                                        {% endfor %}
+                                        <input type="hidden" name="column_id" value="{{ col_id }}">
+                                        <input type="hidden" name="action" value="hide">
+                                        <button type="submit" class="column-toggle">&#x2715;</button>
+                                    </form>
+                                </th>
+                            {% endif %}
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for donor in donors %}
+                        <tr>
+                            {% for col_id, col_name in all_columns.items() %}
+                                {% if col_id not in hidden_columns %}
+                                    <td>
+                                        {% if col_id == 'base_donor_id' %}
+                                            <a href="{{ url_for('donor', donor_id=donor.base_donor_id) }}" class="donor-link">
+                                                {{ donor.base_donor_id }}
+                                            </a>
+                                        {% elif col_id in ['latest_amount', 'largest_amount', 'inception_amount', 'total_dollar_amount'] %}
+                                            ${{ "%.2f"|format(donor[col_id] or 0) }}
+                                        {% else %}
+                                            {{ donor[col_id] or "" }}
+                                        {% endif %}
+                                    </td>
+                                {% endif %}
+                            {% endfor %}
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if total_pages > 1 %}
+            <div class="pagination">
+                <div class="pagination-info">
+                    Page {{ current_page }} of {{ total_pages }}
+                </div>
+                <form method="POST" style="display: flex; gap: 10px;">
+                    {# Preserve all search parameters #}
+                    {% for field, value in search_params.items() %}
+                        {% if value %}
+                            <input type="hidden" name="{{ field }}" value="{{ value }}">
+                        {% endif %}
+                    {% endfor %}
+
+                    <button type="submit" name="page" value="1" class="pagination-button" {% if current_page == 1 %}disabled{% endif %}>
+                        &laquo; First
+                    </button>
+                    
+                    <button type="submit" name="page" value="{{ current_page - 1 }}" class="pagination-button" {% if current_page == 1 %}disabled{% endif %}>
+                        &lsaquo; Previous
+                    </button>
+
+                    {% for page_num in range([1, current_page - 2]|max, [current_page + 3, total_pages + 1]|min) %}
+                        <button type="submit" name="page" value="{{ page_num }}" 
+                                class="pagination-button {% if page_num == current_page %}active{% endif %}">
+                            {{ page_num }}
+                        </button>
+                    {% endfor %}
+
+                    <button type="submit" name="page" value="{{ current_page + 1 }}" class="pagination-button" {% if current_page == total_pages %}disabled{% endif %}>
+                        Next &rsaquo;
+                    </button>
+                    
+                    <button type="submit" name="page" value="{{ total_pages }}" class="pagination-button" {% if current_page == total_pages %}disabled{% endif %}>
+                        Last &raquo;
+                    </button>
+                </form>
+            </div>
+        {% endif %}
+    {% else %}
+        <p>No donors found matching your search criteria.</p>
+    {% endif %}
+
+    <a href="{{ url_for('home') }}" class="back-link">&larr; Back to Search</a>
+
+    <script>
+        function showColumnSelector(format) {
+            const selector = document.getElementById('column-selector');
+            const form = document.getElementById('download-form');
+            const downloadBtn = document.getElementById('download-btn');
+            
+            // Set the action URL based on format
+            form.action = format === 'csv' ? '{{ url_for("download_donor_results", format="csv") }}' : '{{ url_for("download_donor_results", format="pdf") }}';
+            
+            // Update button style and text
+            downloadBtn.className = format === 'csv' ? 'download-button csv' : 'download-button pdf';
+            downloadBtn.textContent = format === 'csv' ? 'Download CSV' : 'Download PDF';
+            
+            selector.classList.add('active');
+            selector.scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        function hideColumnSelector() {
+            const selector = document.getElementById('column-selector');
+            selector.classList.remove('active');
+        }
+        
+        function updateColumnCount() {
+            const checked = document.querySelectorAll('input[name="selected_columns"]:checked');
+            const count = checked.length;
+            document.getElementById('selected-count').textContent = count;
+            
+            let pageSizeInfo;
+            if (count <= 6) {
+                pageSizeInfo = '📄 Will use Letter size (optimal for up to 6 columns)';
+            } else if (count <= 10) {
+                pageSizeInfo = '📄 Will use A4 size (good for up to 10 columns)';
+            } else if (count <= 15) {
+                pageSizeInfo = '📄 Will use A3 size (handles up to 15 columns)';
+            } else if (count <= 25) {
+                pageSizeInfo = '📄 Will use A2 size (handles up to 25 columns)';
+            } else {
+                pageSizeInfo = '📄 Will use A1 size (handles 25+ columns)';
+            }
+            
+            document.getElementById('page-size-info').textContent = pageSizeInfo;
+        }
+        
+        function selectAllColumns() {
+            const checkboxes = document.querySelectorAll('input[name="selected_columns"]');
+            checkboxes.forEach(cb => cb.checked = true);
+            updateColumnCount();
+        }
+        
+        function selectNoColumns() {
+            const checkboxes = document.querySelectorAll('input[name="selected_columns"]');
+            checkboxes.forEach(cb => cb.checked = false);
+            updateColumnCount();
+        }
+        
+        function selectDefaultColumns() {
+            const defaultColumns = ['base_donor_id', 'first_name', 'last_name', 'email_address', 'city', 'state', 'total_dollar_amount'];
+            const checkboxes = document.querySelectorAll('input[name="selected_columns"]');
+            
+            checkboxes.forEach(cb => {
+                cb.checked = defaultColumns.includes(cb.value);
+            });
+            updateColumnCount();
+        }
+        
+        // Form validation
+        document.getElementById('download-form').addEventListener('submit', function(e) {
+            const checked = document.querySelectorAll('input[name="selected_columns"]:checked');
+            if (checked.length === 0) {
+                alert('Please select at least one column to include in the report.');
+                e.preventDefault();
+                return false;
+            }
+        });
+        
+        // Add event listeners to checkboxes to update count
+        document.addEventListener('DOMContentLoaded', function() {
+            const checkboxes = document.querySelectorAll('input[name="selected_columns"]');
+            checkboxes.forEach(cb => {
+                cb.addEventListener('change', updateColumnCount);
+            });
+            
+            // Initialize the count
+            updateColumnCount();
+        });
+    </script>
+</body>
+</html> 

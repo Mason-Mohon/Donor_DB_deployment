@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Batch Transaction Update</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 0 20px;
+            line-height: 1.6;
+        }
+        .form-container {
+            background: #f9f9f9;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 25px;
+        }
+        .global-settings {
+            background: #fff;
+            padding: 20px;
+            margin-bottom: 25px;
+            border: 2px solid #007bff;
+            border-radius: 8px;
+        }
+        .global-settings h2 {
+            margin-top: 0;
+            color: #007bff;
+            border-bottom: 2px solid #e9ecef;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+        .global-settings .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+        }
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+        .form-group label {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+            font-size: 0.9em;
+        }
+        .form-group input[type="text"],
+        .form-group input[type="date"],
+        .form-group input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 0.95em;
+        }
+        .transaction-table {
+            background: #fff;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 25px;
+        }
+        .transaction-table h2 {
+            margin-top: 0;
+            color: #333;
+            border-bottom: 2px solid #e9ecef;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        .transaction-row {
+            display: grid;
+            grid-template-columns: 100px 100px 200px 60px;
+            gap: 15px;
+            margin-bottom: 10px;
+            align-items: end;
+            padding: 10px;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+        }
+        .transaction-row.header {
+            background: #f8f9fa;
+            font-weight: bold;
+            border: 2px solid #dee2e6;
+        }
+        .transaction-row input,
+        .transaction-row select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            font-size: 0.9em;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .transaction-row label {
+            font-size: 0.8em;
+            color: #666;
+            margin-bottom: 2px;
+        }
+        .add-row-button {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+        }
+        .add-row-button:hover {
+            background: #218838;
+        }
+        .remove-row-button {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 0.8em;
+        }
+        .remove-row-button:hover {
+            background: #c82333;
+        }
+        .form-actions {
+            text-align: center;
+            margin-top: 30px;
+        }
+        .form-actions button {
+            background-color: #007bff;
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1.1em;
+            margin: 0 10px;
+            transition: background-color 0.3s ease;
+        }
+        .form-actions button:hover {
+            background-color: #0056b3;
+        }
+        .form-actions .cancel-button {
+            background-color: #6c757d;
+        }
+        .form-actions .cancel-button:hover {
+            background-color: #545b62;
+        }
+        .back-link {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: #6c757d;
+            text-decoration: none;
+            padding: 8px 15px;
+            border: 1px solid #6c757d;
+            border-radius: 5px;
+        }
+        .back-link:hover {
+            background-color: #f1f1f1;
+        }
+        .alert {
+            padding: 12px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+        .alert-error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .alert-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .alert-warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+        .instructions {
+            background: #e8f4ff;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .instructions h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .instructions ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .instructions li {
+            margin-bottom: 5px;
+            color: #666;
+        }
+        @media (max-width: 768px) {
+            .transaction-row {
+                grid-template-columns: 1fr;
+                gap: 5px;
+            }
+            .global-settings .form-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <a href="{{ url_for('home') }}" class="back-link">&larr; Back to Search</a>
+    
+    <div class="form-container">
+        <h1>Batch Transaction Update</h1>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="instructions">
+            <h3>Instructions:</h3>
+            <ul>
+                <li><strong>Global Settings:</strong> Set the transaction date, batch number, and payment method once - these apply to ALL transactions below</li>
+                <li><strong>Payment Type:</strong> Select from dropdown - appeal code and descriptions will be auto-filled based on your selection</li>
+                <li><strong>Donor ID:</strong> Must be valid donor IDs from the database</li>
+                <li><strong>Amount:</strong> Required for each transaction, must be a positive number</li>
+                <li><strong>Add Rows:</strong> Click "Add Row" to add more transaction rows as needed</li>
+            </ul>
+        </div>
+
+        <form method="POST" id="batch-form">
+            <div class="global-settings">
+                <h2>Global Settings (Applied to All Transactions)</h2>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="global_trans_date">Transaction Date <span style="color:red;">*</span></label>
+                        <input type="date" id="global_trans_date" name="global_trans_date" 
+                               value="{{ form_data.get('global_trans_date', '') }}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="global_update_batch_num">Update Batch Number</label>
+                        <input type="text" id="global_update_batch_num" name="global_update_batch_num" 
+                               value="{{ form_data.get('global_update_batch_num', '') }}" 
+                               placeholder="e.g., BATCH2024001">
+                    </div>
+                    <div class="form-group">
+                        <label for="global_payment_method">Payment Method</label>
+                        <input type="text" id="global_payment_method" name="global_payment_method" 
+                               value="{{ form_data.get('global_payment_method', '') }}" 
+                               placeholder="e.g., Check, Credit Card, Cash">
+                    </div>
+                </div>
+            </div>
+
+            <div class="transaction-table">
+                <h2>Individual Transactions</h2>
+                
+                <button type="button" class="add-row-button" onclick="addTransactionRow()">+ Add Row</button>
+                
+                <div class="transaction-row header">
+                    <div>Donor ID</div>
+                    <div>Amount</div>
+                    <div>Payment Type</div>
+                    <div>Action</div>
+                </div>
+
+                <div id="transaction-rows">
+                    <!-- Initial rows will be added by JavaScript -->
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <a href="{{ url_for('home') }}" class="cancel-button" style="text-decoration: none; display: inline-block; text-align: center;">Cancel</a>
+                <button type="submit">Process Batch Transactions</button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let rowCounter = 0;
+
+        function addTransactionRow(donorId = '', amount = '', paymentType = '') {
+            rowCounter++;
+            const container = document.getElementById('transaction-rows');
+            
+            const row = document.createElement('div');
+            row.className = 'transaction-row';
+            row.id = `row_${rowCounter}`;
+            
+            row.innerHTML = `
+                <div class="form-group">
+                    <input type="number" name="donor_id_${rowCounter}" placeholder="Donor ID" 
+                           value="${donorId}" min="1" step="1">
+                </div>
+                <div class="form-group">
+                    <input type="number" name="trans_amount_${rowCounter}" placeholder="Amount" 
+                           value="${amount}" min="0" step="0.01">
+                </div>
+                <div class="form-group">
+                    <select name="payment_type_${rowCounter}" onchange="autoFillFromPaymentType(${rowCounter})">
+                        <option value="">Select Payment Type</option>
+                        <option value="N" ${paymentType === 'N' ? 'selected' : ''}>N - SUBS P.S. REPORT</option>
+                        <option value="M" ${paymentType === 'M' ? 'selected' : ''}>M - PURCH MATERIALS ETF</option>
+                        <option value="G" ${paymentType === 'G' ? 'selected' : ''}>G - EAGLE TRUST FUND</option>
+                        <option value="L" ${paymentType === 'L' ? 'selected' : ''}>L - EFELDF (TAX-DEDUCTIBLE)</option>
+                        <option value="E" ${paymentType === 'E' ? 'selected' : ''}>E - PS EAGLES</option>
+                        <option value="C" ${paymentType === 'C' ? 'selected' : ''}>C - REG EAGLE COUNCIL</option>
+                        <option value="O" ${paymentType === 'O' ? 'selected' : ''}>O - PURCH MATERIALS EFELDF</option>
+                    </select>
+                    <!-- Hidden fields for auto-filled values -->
+                    <input type="hidden" name="appeal_code_${rowCounter}" value="">
+                    <input type="hidden" name="bluebook_job_description_${rowCounter}" value="">
+                    <input type="hidden" name="bluebook_list_description_${rowCounter}" value="">
+                </div>
+                <div class="form-group">
+                    <button type="button" class="remove-row-button" onclick="removeTransactionRow(${rowCounter})">✕</button>
+                </div>
+            `;
+            
+            container.appendChild(row);
+            
+            // If a payment type was provided, auto-fill the descriptions
+            if (paymentType) {
+                autoFillFromPaymentType(rowCounter);
+            }
+        }
+
+        function removeTransactionRow(rowNum) {
+            const row = document.getElementById(`row_${rowNum}`);
+            if (row) {
+                row.remove();
+            }
+        }
+
+        function autoFillFromPaymentType(rowNum) {
+            const paymentTypeSelect = document.querySelector(`select[name="payment_type_${rowNum}"]`);
+            const appealCodeInput = document.querySelector(`input[name="appeal_code_${rowNum}"]`);
+            const jobDescInput = document.querySelector(`input[name="bluebook_job_description_${rowNum}"]`);
+            const listDescInput = document.querySelector(`input[name="bluebook_list_description_${rowNum}"]`);
+            
+            if (!paymentTypeSelect || !appealCodeInput || !jobDescInput || !listDescInput) return;
+            
+            const paymentType = paymentTypeSelect.value;
+            let description = '';
+            
+            // Map payment types to descriptions
+            switch(paymentType) {
+                case 'N':
+                    description = 'SUBS P.S. REPORT';
+                    break;
+                case 'M':
+                    description = 'PURCH MATERIALS ETF';
+                    break;
+                case 'G':
+                    description = 'EAGLE TRUST FUND';
+                    break;
+                case 'L':
+                    description = 'EFELDF (TAX-DEDUCTIBLE)';
+                    break;
+                case 'E':
+                    description = 'PS EAGLES';
+                    break;
+                case 'C':
+                    description = 'REG EAGLE COUNCIL';
+                    break;
+                case 'O':
+                    description = 'PURCH MATERIALS EFELDF';
+                    break;
+                default:
+                    description = '';
+            }
+            
+            // Set all the hidden fields
+            appealCodeInput.value = paymentType;
+            jobDescInput.value = description;
+            listDescInput.value = description;
+        }
+
+        // Initialize with 5 empty rows
+        document.addEventListener('DOMContentLoaded', function() {
+            for (let i = 0; i < 5; i++) {
+                addTransactionRow();
+            }
+        });
+
+        // Form validation
+        document.getElementById('batch-form').addEventListener('submit', function(e) {
+            const globalDate = document.getElementById('global_trans_date').value;
+            if (!globalDate) {
+                alert('Transaction date is required.');
+                e.preventDefault();
+                return;
+            }
+
+            // Check if at least one row has data
+            let hasData = false;
+            const inputs = document.querySelectorAll('input[name^="donor_id_"], input[name^="trans_amount_"]');
+            for (let input of inputs) {
+                if (input.value.trim()) {
+                    hasData = true;
+                    break;
+                }
+            }
+
+            if (!hasData) {
+                alert('Please fill in at least one transaction.');
+                e.preventDefault();
+                return;
+            }
+        });
+    </script>
+</body>
+</html> 

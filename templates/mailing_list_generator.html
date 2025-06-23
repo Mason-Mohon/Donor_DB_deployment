@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Mailing List Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+        .header-actions {
+            margin-bottom: 20px;
+            text-align: right;
+        }
+        .action-button {
+            background: #007bff;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            margin-left: 10px;
+        }
+        .action-button:hover {
+            background: #0056b3;
+        }
+        .form-container {
+            background: #f5f5f5;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: inline-block;
+            width: 150px;
+            margin-right: 10px;
+            font-weight: bold;
+            color: #333;
+        }
+        input[type="text"],
+        input[type="date"] {
+            width: 300px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            font-size: 14px;
+        }
+        .generate-button {
+            background: #28a745;
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        .generate-button:hover {
+            background: #218838;
+        }
+        .info-box {
+            background: #d1ecf1;
+            color: #0c5460;
+            padding: 20px;
+            border: 1px solid #bee5eb;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .criteria-box {
+            background: #fff3cd;
+            color: #856404;
+            padding: 20px;
+            border: 1px solid #ffeeba;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .output-box {
+            background: #d4edda;
+            color: #155724;
+            padding: 20px;
+            border: 1px solid #c3e6cb;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .alert {
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 3px;
+        }
+        .alert-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .alert-error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .alert-warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+        .criteria-list {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .criteria-list li {
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
+        .exclusion-note {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 3px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>Mailing List Generator</h1>
+
+    <div class="header-actions">
+        <a href="{{ url_for('home') }}" class="action-button">Back to Search</a>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="info-box">
+        <h3>About Mailing List Generator</h3>
+        <p>This tool generates a targeted mailing list based on specific criteria for donor outreach. It creates a CSV file that can be used for mail merge operations or direct mailing services.</p>
+    </div>
+
+    <form method="POST" class="form-container">
+        <h3>Generate Mailing List</h3>
+        
+        <div class="form-group">
+            <label for="query_title">Mailing Title:</label>
+            <input type="text" id="query_title" name="query_title" value="{{ request.form.get('query_title', '') }}" 
+                   placeholder="e.g., Spring 2024 Campaign" required>
+            <small style="color: #666; display: block; margin-top: 2px; margin-left: 160px;">
+                This will be used in the CSV filename
+            </small>
+        </div>
+
+        <div class="form-group">
+            <label for="start_date">Start Date:</label>
+            <input type="date" id="start_date" name="start_date" value="{{ request.form.get('start_date', '') }}" required>
+            <small style="color: #666; display: block; margin-top: 2px; margin-left: 160px;">
+                Reference date for transaction and donor criteria
+            </small>
+        </div>
+
+        <button type="submit" class="generate-button">
+            Generate Mailing List CSV
+        </button>
+    </form>
+
+    <div class="criteria-box">
+        <h3>📋 Selection Criteria</h3>
+        <p><strong>Donors will be included if they meet ANY of the following criteria:</strong></p>
+        <ol class="criteria-list">
+            <li><strong>Recent Donors:</strong> Have transactions between the selected start date and today, AND have newsletter status "A" (Active)</li>
+            <li><strong>Significant Past Donors:</strong> Have a largest transaction over $100 within the 3-year period before the start date, AND have newsletter status "A"</li>
+            <li><strong>Lifetime Status:</strong> Have newsletter status "A" (Active) AND donor status "L" (Lifetime)</li>
+            <li><strong>Exempt Status:</strong> Have newsletter status "E" (Exempt) from any time period</li>
+        </ol>
+        
+        <div class="exclusion-note">
+            ❌ <strong>Exclusions:</strong> Donors with newsletter status "M" (Mutiny), "N", or "D" (Deceased) will be automatically excluded
+        </div>
+    </div>
+
+    <div class="output-box">
+        <h3>📄 CSV Output Fields</h3>
+        <p>The generated CSV file will contain the following columns:</p>
+        <ul>
+            <li><strong>Full Name:</strong> Complete name including prefix, first, last, and suffix</li>
+            <li><strong>Salutation:</strong> Preferred greeting (if available)</li>
+            <li><strong>Company/Address Line 1:</strong> Business name or primary address</li>
+            <li><strong>Address Line 2:</strong> Secondary address information</li>
+            <li><strong>Address Line 3:</strong> Primary street address</li>
+            <li><strong>City:</strong> City name</li>
+            <li><strong>State:</strong> State abbreviation</li>
+            <li><strong>ZIP Code:</strong> Postal code including +4 extension</li>
+            <li><strong>Latest Transaction Date:</strong> Date of most recent donation</li>
+        </ul>
+        
+        <p><strong>File naming:</strong> <code>[Your Title]_allmail_query_[timestamp].csv</code></p>
+    </div>
+
+    <div class="info-box">
+        <h4>💡 Usage Tips</h4>
+        <ul>
+            <li><strong>Choose your start date carefully:</strong> This date determines both recent transaction criteria and the 3-year lookback period</li>
+            <li><strong>Review exclusions:</strong> Make sure donors with "M", "N", or "D" status should indeed be excluded</li>
+            <li><strong>File handling:</strong> The CSV can be opened in Excel or imported into mail merge software</li>
+            <li><strong>Data freshness:</strong> Consider running a transaction refresh before generating large mailing lists</li>
+        </ul>
+    </div>
+</body>
+</html> 
