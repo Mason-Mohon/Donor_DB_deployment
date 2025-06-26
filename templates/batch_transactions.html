@@ -202,6 +202,53 @@
             margin-bottom: 5px;
             color: #666;
         }
+        .donor-id-container {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+        }
+        .donor-info-tooltip {
+            position: absolute;
+            top: -80px;
+            left: 0;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 0.8em;
+            white-space: nowrap;
+            z-index: 1000;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        .donor-info-tooltip.show {
+            opacity: 1;
+        }
+        .donor-info-tooltip::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 20px;
+            border: 5px solid transparent;
+            border-top-color: rgba(0, 0, 0, 0.9);
+        }
+        .donor-id-input {
+            width: 100%;
+        }
+        .donor-id-input.valid {
+            border-color: #28a745;
+            background-color: #f8fff8;
+        }
+        .donor-id-input.invalid {
+            border-color: #dc3545;
+            background-color: #fff8f8;
+        }
+        .donor-id-input.loading {
+            border-color: #007bff;
+            background-color: #f8fcff;
+        }
         @media (max-width: 768px) {
             .transaction-row {
                 grid-template-columns: 1fr;
@@ -209,6 +256,12 @@
             }
             .global-settings .form-grid {
                 grid-template-columns: 1fr;
+            }
+            .donor-info-tooltip {
+                top: -100px;
+                left: -50px;
+                width: 200px;
+                white-space: normal;
             }
         }
     </style>
@@ -299,8 +352,14 @@
             
             row.innerHTML = `
                 <div class="form-group">
-                    <input type="number" name="donor_id_${rowCounter}" placeholder="Donor ID" 
-                           value="${donorId}" min="1" step="1">
+                    <div class="donor-id-container">
+                        <input type="number" name="donor_id_${rowCounter}" placeholder="Donor ID" 
+                               value="${donorId}" min="1" step="1" class="donor-id-input"
+                               oninput="handleDonorIdInput(this, ${rowCounter})"
+                               onmouseenter="showDonorTooltip(${rowCounter})"
+                               onmouseleave="hideDonorTooltip(${rowCounter})">
+                        <div class="donor-info-tooltip" id="tooltip_${rowCounter}"></div>
+                    </div>
                 </div>
                 <div class="form-group">
                     <input type="number" name="trans_amount_${rowCounter}" placeholder="Amount" 
@@ -393,6 +452,96 @@
             }
         });
 
+        // Store donor information cache
+        const donorCache = {};
+        let searchTimeout = null;
+
+        function handleDonorIdInput(input, rowNum) {
+            const donorId = input.value.trim();
+            
+            // Clear previous timeout
+            if (searchTimeout) {
+                clearTimeout(searchTimeout);
+            }
+            
+            // Reset input styling
+            input.className = 'donor-id-input';
+            
+            // Clear tooltip
+            const tooltip = document.getElementById(`tooltip_${rowNum}`);
+            tooltip.innerHTML = '';
+            tooltip.classList.remove('show');
+            
+            if (!donorId || isNaN(donorId)) {
+                return;
+            }
+            
+            // Set loading state
+            input.classList.add('loading');
+            
+            // Debounce the search
+            searchTimeout = setTimeout(() => {
+                fetchDonorInfo(donorId, rowNum, input);
+            }, 500);
+        }
+
+        function fetchDonorInfo(donorId, rowNum, input) {
+            // Check cache first
+            if (donorCache[donorId]) {
+                updateDonorDisplay(donorCache[donorId], rowNum, input);
+                return;
+            }
+            
+            // Fetch from server
+            fetch(`/get_donor_info/${donorId}`)
+                .then(response => response.json())
+                .then(data => {
+                    donorCache[donorId] = data;
+                    updateDonorDisplay(data, rowNum, input);
+                })
+                .catch(error => {
+                    console.error('Error fetching donor info:', error);
+                    input.classList.remove('loading');
+                    input.classList.add('invalid');
+                    
+                    const tooltip = document.getElementById(`tooltip_${rowNum}`);
+                    tooltip.innerHTML = 'Error fetching donor info';
+                });
+        }
+
+        function updateDonorDisplay(data, rowNum, input) {
+            const tooltip = document.getElementById(`tooltip_${rowNum}`);
+            
+            input.classList.remove('loading');
+            
+            if (data.found) {
+                input.classList.add('valid');
+                
+                const name = `${data.first_name} ${data.last_name}`.trim();
+                const location = [data.city, data.state, data.zip_code].filter(x => x).join(', ');
+                
+                tooltip.innerHTML = `
+                    <strong>${name}</strong><br>
+                    ${location}
+                `;
+            } else {
+                input.classList.add('invalid');
+                tooltip.innerHTML = 'Donor ID not found';
+            }
+        }
+
+        function showDonorTooltip(rowNum) {
+            const tooltip = document.getElementById(`tooltip_${rowNum}`);
+            if (tooltip.innerHTML.trim()) {
+                tooltip.classList.add('show');
+            }
+        }
+
+        function hideDonorTooltip(rowNum) {
+            const tooltip = document.getElementById(`tooltip_${rowNum}`);
+            tooltip.classList.remove('show');
+        }
+
         // Form validation
         document.getElementById('batch-form').addEventListener('submit', function(e) {
             const globalDate = document.getElementById('global_trans_date').value;
@@ -416,6 +565,16 @@
                 alert('Please fill in at least one transaction.');
                 e.preventDefault();
                 return;
+            }
+
+            // Check for invalid donor IDs
+            const invalidInputs = document.querySelectorAll('.donor-id-input.invalid');
+            if (invalidInputs.length > 0) {
+                const proceed = confirm('Some donor IDs were not found. Do you want to proceed anyway?');
+                if (!proceed) {
+                    e.preventDefault();
+                    return;
+                }
             }
         });
     </script>

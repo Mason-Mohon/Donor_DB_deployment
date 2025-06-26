@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, abort, flash, send_file
+from flask import Flask, render_template, request, redirect, url_for, abort, flash, send_file, jsonify
 from sqlalchemy import create_engine, or_, and_, not_
 from sqlalchemy.orm import sessionmaker, joinedload
 from models import Base, EagleTrustFundDonor, EagleTrustFundTransaction
@@ -1111,6 +1111,44 @@ def transaction_search():
 
             # Calculate total amount for displayed transactions
             total_amount = sum(t.trans_amount for t in transactions)
+            
+            # Calculate payment type totals if searching by batch
+            payment_type_totals = None
+            is_batch_search = bool(search_params.get('update_batch_num'))
+            if is_batch_search:
+                # Get all transactions for this batch (not just the paginated ones)
+                all_batch_transactions = query.order_by(EagleTrustFundTransaction.trans_date.desc()).all()
+                payment_type_totals = {}
+                
+                for trans in all_batch_transactions:
+                    payment_type = trans.payment_type or 'Unknown'
+                    if payment_type not in payment_type_totals:
+                        payment_type_totals[payment_type] = {
+                            'count': 0,
+                            'amount': Decimal('0'),
+                            'description': ''
+                        }
+                    payment_type_totals[payment_type]['count'] += 1
+                    payment_type_totals[payment_type]['amount'] += trans.trans_amount
+                    
+                    # Set description based on payment type
+                    if not payment_type_totals[payment_type]['description']:
+                        if payment_type == 'N':
+                            payment_type_totals[payment_type]['description'] = 'SUBS P.S. REPORT'
+                        elif payment_type == 'M':
+                            payment_type_totals[payment_type]['description'] = 'PURCH MATERIALS ETF'
+                        elif payment_type == 'G':
+                            payment_type_totals[payment_type]['description'] = 'EAGLE TRUST FUND'
+                        elif payment_type == 'L':
+                            payment_type_totals[payment_type]['description'] = 'EFELDF (TAX-DEDUCTIBLE)'
+                        elif payment_type == 'E':
+                            payment_type_totals[payment_type]['description'] = 'PS EAGLES'
+                        elif payment_type == 'C':
+                            payment_type_totals[payment_type]['description'] = 'REG EAGLE COUNCIL'
+                        elif payment_type == 'O':
+                            payment_type_totals[payment_type]['description'] = 'PURCH MATERIALS EFELDF'
+                        else:
+                            payment_type_totals[payment_type]['description'] = trans.bluebook_job_description or 'Unknown'
 
             return render_template(
                 "transaction_search.html",
@@ -1120,7 +1158,9 @@ def transaction_search():
                 search_performed=True,
                 current_page=page,
                 total_pages=total_pages,
-                total_results=total_results
+                total_results=total_results,
+                payment_type_totals=payment_type_totals,
+                is_batch_search=is_batch_search
             )
 
         finally:
@@ -1167,7 +1207,7 @@ def generate_csv(data, headers, filename):
         download_name=filename
     )
 
-def generate_pdf(data, headers, filename, title):
+def generate_pdf(data, headers, filename, title, payment_type_totals=None):
     """Generate PDF file from data with dynamic sizing based on column count"""
     from reportlab.lib.pagesizes import letter, A4, A3, A2, A1, landscape, portrait
     
@@ -1228,6 +1268,55 @@ def generate_pdf(data, headers, filename, title):
     
     elements.append(Paragraph(title, title_style))
     elements.append(Paragraph(f"Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", normal_style))
+    
+    # Add payment type totals if provided
+    if payment_type_totals:
+        elements.append(Paragraph("<br/>", normal_style))  # Add some space
+        elements.append(Paragraph("Batch Summary by Payment Type:", title_style))
+        
+        # Create summary table
+        summary_data = [['Payment Type', 'Description', 'Transactions', 'Total Amount']]
+        grand_total = Decimal('0')
+        grand_count = 0
+        
+        for payment_type, type_data in payment_type_totals.items():
+            summary_data.append([
+                payment_type,
+                type_data['description'],
+                str(type_data['count']),
+                format_currency(type_data['amount'])
+            ])
+            grand_total += type_data['amount']
+            grand_count += type_data['count']
+        
+        # Add grand total row
+        summary_data.append(['TOTAL', '', str(grand_count), format_currency(grand_total)])
+        
+        summary_table = Table(summary_data, colWidths=[0.8*inch, 2.5*inch, 1*inch, 1.2*inch])
+        summary_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.darkblue),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('ALIGN', (2, 0), (3, -1), 'RIGHT'),  # Right align count and amount columns
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+            ('TOPPADDING', (0, 0), (-1, 0), 8),
+            ('BACKGROUND', (0, 1), (-1, -2), colors.white),
+            ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),  # Highlight total row
+            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+            ('FONTNAME', (0, 1), (-1, -2), 'Helvetica'),
+            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),  # Bold total row
+            ('FONTSIZE', (0, 1), (-1, -1), 9),
+            ('TOPPADDING', (0, 1), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 4),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+        ]))
+        
+        elements.append(summary_table)
+        elements.append(Paragraph("<br/>", normal_style))  # Add space before main table
     
     # Create table with dynamic column widths
     table_data = [headers] + data
@@ -1458,11 +1547,47 @@ def download_transaction_results(format):
         
         transactions = query.order_by(EagleTrustFundTransaction.trans_date.desc()).all()
         
+        # Calculate payment type totals if searching by batch
+        payment_type_totals = None
+        is_batch_search = bool(search_params.get('update_batch_num'))
+        if is_batch_search:
+            payment_type_totals = {}
+            
+            for trans in transactions:
+                payment_type = trans.payment_type or 'Unknown'
+                if payment_type not in payment_type_totals:
+                    payment_type_totals[payment_type] = {
+                        'count': 0,
+                        'amount': Decimal('0'),
+                        'description': ''
+                    }
+                payment_type_totals[payment_type]['count'] += 1
+                payment_type_totals[payment_type]['amount'] += trans.trans_amount
+                
+                # Set description based on payment type
+                if not payment_type_totals[payment_type]['description']:
+                    if payment_type == 'N':
+                        payment_type_totals[payment_type]['description'] = 'SUBS P.S. REPORT'
+                    elif payment_type == 'M':
+                        payment_type_totals[payment_type]['description'] = 'PURCH MATERIALS ETF'
+                    elif payment_type == 'G':
+                        payment_type_totals[payment_type]['description'] = 'EAGLE TRUST FUND'
+                    elif payment_type == 'L':
+                        payment_type_totals[payment_type]['description'] = 'EFELDF (TAX-DEDUCTIBLE)'
+                    elif payment_type == 'E':
+                        payment_type_totals[payment_type]['description'] = 'PS EAGLES'
+                    elif payment_type == 'C':
+                        payment_type_totals[payment_type]['description'] = 'REG EAGLE COUNCIL'
+                    elif payment_type == 'O':
+                        payment_type_totals[payment_type]['description'] = 'PURCH MATERIALS EFELDF'
+                    else:
+                        payment_type_totals[payment_type]['description'] = trans.bluebook_job_description or 'Unknown'
+        
         # Define columns
         headers = ['Date', 'Donor Name', 'Amount', 'Payment Type', 'Payment Method', 'Batch #', 'Job Description']
         
-        # Prepare data rows
-        data = []
+        # Prepare transaction data rows
+        transaction_data = []
         for trans in transactions:
             # Apply display logic for job description
             job_description = trans.bluebook_job_description or ''
@@ -1471,7 +1596,7 @@ def download_transaction_results(format):
                 trans.bluebook_job_description == "DUES OR EAGLES"):
                 job_description = "PS EAGLES"
             
-            data.append([
+            transaction_data.append([
                 trans.trans_date.strftime('%Y-%m-%d'),
                 trans.donor.formatted_full_name or f"{trans.donor.first_name} {trans.donor.last_name}",
                 format_currency(trans.trans_amount),
@@ -1484,9 +1609,12 @@ def download_transaction_results(format):
         # Generate appropriate file format
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         if format == 'csv':
-            return generate_csv(data, headers, f'transaction_results_{timestamp}.csv')
+            return generate_csv(transaction_data, headers, f'transaction_results_{timestamp}.csv')
         elif format == 'pdf':
-            return generate_pdf(data, headers, f'transaction_results_{timestamp}.pdf', 'Transaction Search Results')
+            title = 'Transaction Search Results'
+            if is_batch_search and search_params.get('update_batch_num'):
+                title = f'Batch {search_params.get("update_batch_num")} - Transaction Results'
+            return generate_pdf(transaction_data, headers, f'transaction_results_{timestamp}.pdf', title, payment_type_totals)
         else:
             abort(400, "Invalid format specified")
             
@@ -1611,6 +1739,30 @@ def refresh_transactions():
     
     # GET request - show confirmation page
     return render_template("refresh_transactions.html", refresh_completed=False)
+
+@app.route("/get_donor_info/<int:donor_id>")
+def get_donor_info(donor_id):
+    """AJAX endpoint to get donor information for hover tooltip"""
+    session = Session()
+    try:
+        donor = session.query(EagleTrustFundDonor).filter_by(base_donor_id=donor_id).first()
+        
+        if donor:
+            return jsonify({
+                'found': True,
+                'first_name': donor.first_name or '',
+                'last_name': donor.last_name or '',
+                'state': donor.state or '',
+                'zip_code': donor.zip_plus4 or '',
+                'city': donor.city or ''
+            })
+        else:
+            return jsonify({'found': False})
+    except Exception as e:
+        app.logger.error(f"Error fetching donor info for ID {donor_id}: {e}")
+        return jsonify({'found': False, 'error': str(e)})
+    finally:
+        session.close()
 
 @app.route("/mailing_list_generator", methods=["GET", "POST"])
 def mailing_list_generator():
