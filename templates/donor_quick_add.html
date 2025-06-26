@@ -204,8 +204,8 @@
                         <th style="width: 150px;">Salutation</th>
                         <th style="width: 120px;">Email</th>
                         <th style="width: 100px;">Phone</th>
-                        <th style="width: 150px;">Address Line 1</th>
-                        <th style="width: 120px;">Address Line 2</th>
+                        <th style="width: 150px;">Company</th>
+                        <th style="width: 150px;">Address</th>
                         <th style="width: 100px;">City</th>
                         <th style="width: 60px;">State</th>
                         <th style="width: 80px;">ZIP Code</th>
@@ -232,8 +232,8 @@
                                 <td><input type="text" name="salutation_{{ i }}" value="{{ form_data.get('salutation_' + i|string, '') }}" placeholder="Dear John and Jane"></td>
                                 <td><input type="email" name="email_{{ i }}" value="{{ form_data.get('email_' + i|string, '') }}"></td>
                                 <td><input type="tel" name="phone_{{ i }}" value="{{ form_data.get('phone_' + i|string, '') }}"></td>
-                                <td><input type="text" name="address_line_1_{{ i }}" value="{{ form_data.get('address_line_1_' + i|string, '') }}"></td>
-                                <td><input type="text" name="address_line_2_{{ i }}" value="{{ form_data.get('address_line_2_' + i|string, '') }}"></td>
+                                <td><input type="text" name="company_{{ i }}" value="{{ form_data.get('company_' + i|string, '') }}" placeholder="Company/Organization"></td>
+                                <td><input type="text" name="address_{{ i }}" value="{{ form_data.get('address_' + i|string, '') }}" placeholder="Street Address"></td>
                                 <td><input type="text" name="city_{{ i }}" value="{{ form_data.get('city_' + i|string, '') }}"></td>
                                 <td><input type="text" name="state_{{ i }}" maxlength="2" value="{{ form_data.get('state_' + i|string, '') }}"></td>
                                 <td><input type="text" name="zip_code_{{ i }}" value="{{ form_data.get('zip_code_' + i|string, '') }}"></td>
@@ -260,8 +260,8 @@
                                 <td><input type="text" name="salutation_{{ i }}" placeholder="Dear John and Jane"></td>
                                 <td><input type="email" name="email_{{ i }}"></td>
                                 <td><input type="tel" name="phone_{{ i }}"></td>
-                                <td><input type="text" name="address_line_1_{{ i }}"></td>
-                                <td><input type="text" name="address_line_2_{{ i }}"></td>
+                                <td><input type="text" name="company_{{ i }}" placeholder="Company/Organization"></td>
+                                <td><input type="text" name="address_{{ i }}" placeholder="Street Address"></td>
                                 <td><input type="text" name="city_{{ i }}"></td>
                                 <td><input type="text" name="state_{{ i }}" maxlength="2"></td>
                                 <td><input type="text" name="zip_code_{{ i }}"></td>
@@ -314,8 +314,8 @@
                 <td><input type="text" name="salutation_${rowCount}" placeholder="Dear John and Jane"></td>
                 <td><input type="email" name="email_${rowCount}"></td>
                 <td><input type="tel" name="phone_${rowCount}"></td>
-                <td><input type="text" name="address_line_1_${rowCount}"></td>
-                <td><input type="text" name="address_line_2_${rowCount}"></td>
+                <td><input type="text" name="company_${rowCount}" placeholder="Company/Organization"></td>
+                <td><input type="text" name="address_${rowCount}" placeholder="Street Address"></td>
                 <td><input type="text" name="city_${rowCount}"></td>
                 <td><input type="text" name="state_${rowCount}" maxlength="2"></td>
                 <td><input type="text" name="zip_code_${rowCount}"></td>

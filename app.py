@@ -756,8 +756,8 @@ def donor_quick_add():
                 salutation = request.form.get(f'salutation_{i}', '').strip() or None
                 email = request.form.get(f'email_{i}', '').strip() or None
                 phone = request.form.get(f'phone_{i}', '').strip() or None
-                address_line_1 = request.form.get(f'address_line_1_{i}', '').strip() or None
-                address_line_2 = request.form.get(f'address_line_2_{i}', '').strip() or None
+                company = request.form.get(f'company_{i}', '').strip() or None  # This is address_1_company
+                address = request.form.get(f'address_{i}', '').strip() or None  # This is address_3_primary
                 city = request.form.get(f'city_{i}', '').strip() or None
                 state = request.form.get(f'state_{i}', '').strip().upper() or None
                 zip_code = request.form.get(f'zip_code_{i}', '').strip() or None
@@ -797,6 +797,19 @@ def donor_quick_add():
                 
                 used_donor_ids.add(donor_id)
                 
+                # Map newsletter status to donor status and descriptions
+                status_mapping = {
+                    'A': ('A', 'ACTIVE', 'ACTIVE'),
+                    'L': ('L', 'LIFETIME', 'LIFETIME'), 
+                    'X': ('X', 'EXPIRED', 'EXPIRED'),
+                    'M': ('M', 'MUTINY', 'MUTINY'),
+                    'E': ('E', 'EXEMPT', 'EXEMPT')
+                }
+                
+                donor_status, donor_status_desc, newsletter_status_desc = status_mapping.get(
+                    newsletter_status, ('A', 'ACTIVE', 'ACTIVE')
+                )
+                
                 # Create new donor object
                 new_donor = EagleTrustFundDonor(
                     base_donor_id=donor_id,
@@ -805,15 +818,17 @@ def donor_quick_add():
                     salutation_dear=salutation,
                     email_address=email,
                     phone=phone,
-                    address_1_company=address_line_1,
-                    address_2_secondary=address_line_2,
+                    address_1_company=company,
+                    address_3_primary=address,
                     city=city,
                     state=state,
                     zip_plus4=zip_code,
                     newsletter_status=newsletter_status,
+                    newsletter_status_desc=newsletter_status_desc,
+                    donor_status=donor_status,
+                    donor_status_desc=donor_status_desc,
                     date_added_to_database=datetime.now().date(),
                     # Set reasonable defaults
-                    donor_status='A',  # Active
                     total_dollar_amount=Decimal('0'),
                     total_responses_includes_zero=0,
                     total_responses_non_zero=0
