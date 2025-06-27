@@ -67,6 +67,9 @@ class EagleTrustFundDonor(Base):
     total_dollar_amount         = Column(DECIMAL(10, 2))
     total_responses_non_zero    = Column(Integer)
     total_responses_includes_zero = Column(Integer)
+    
+    # Gift tracking field - donor ID who received a gift subscription from this donor
+    gifted_to_donor_id          = Column(Integer, ForeignKey("eagletrustfund_donors.base_donor_id"))
 
     # one-to-many → transactions
     transactions = relationship(
@@ -74,6 +77,14 @@ class EagleTrustFundDonor(Base):
         back_populates="donor",
         order_by="EagleTrustFundTransaction.trans_date.desc()",
         lazy="select"
+    )
+    
+    # Gift relationships
+    gifted_to = relationship(
+        "EagleTrustFundDonor",
+        foreign_keys=[gifted_to_donor_id],
+        remote_side="EagleTrustFundDonor.base_donor_id",
+        backref="gifted_by"
     )
 
 class EagleTrustFundTransaction(Base):

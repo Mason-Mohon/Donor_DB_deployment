@@ -448,10 +448,20 @@ def donor(donor_id):
         if donor is None:
             abort(404, f"Donor #{donor_id} not found")
 
+        # Get gift information
+        gifted_to = None
+        if donor.gifted_to_donor_id:
+            gifted_to = session.query(EagleTrustFundDonor).filter_by(base_donor_id=donor.gifted_to_donor_id).first()
+        
+        # Get who gifted to this donor
+        gifted_by = session.query(EagleTrustFundDonor).filter_by(gifted_to_donor_id=donor_id).first()
+
         return render_template(
             "donor.html",
             donor=donor,
-            transactions=donor.transactions
+            transactions=donor.transactions,
+            gifted_to=gifted_to,
+            gifted_by=gifted_by
         )
     finally:
         session.close()
@@ -559,6 +569,7 @@ def add_donor():
 
             # Handle date conversions (adjust field names as needed)
             new_donor.birth_date = parse_date(donor_data.get('birth_date'))
+            # Auto-fill date_added_to_database with today's date if not provided
             new_donor.date_added_to_database = parse_date(donor_data.get('date_added_to_database')) or datetime.now().date()
             new_donor.expiration_date = parse_date(donor_data.get('expiration_date'))
 
@@ -1503,8 +1514,6 @@ def download_donor_results(format):
             'salutation_dear': 'Salutation',
             'removal_request_note': 'Removal Request',
             'twitter': 'Twitter',
-            'gender_code': 'Gender',
-            'birth_date': 'Birth Date',
             'newsletter_status': 'Newsletter Status',
             'newsletter_status_desc': 'Newsletter Status Desc',
             'donor_status': 'Donor Status',
@@ -2173,6 +2182,140 @@ def edit_transaction(transaction_id):
             return render_template("edit_transaction.html", transaction=transaction, donor=donor)
         else:
             return redirect(url_for('home'))
+    finally:
+        session.close()
+
+
+
+@app.route("/quick_edit_expiration/<int:donor_id>", methods=["POST"])
+def quick_edit_expiration(donor_id):
+    """AJAX endpoint to quickly edit donor's expiration date"""
+    session = Session()
+    try:
+        donor = session.query(EagleTrustFundDonor).filter_by(base_donor_id=donor_id).first()
+        if not donor:
+            return jsonify({'success': False, 'error': 'Donor not found'})
+        
+        new_expiration = request.json.get('expiration_date')
+        if new_expiration:
+            try:
+                # Validate date format
+                datetime.strptime(new_expiration, '%Y-%m-%d')
+                donor.expiration_date = new_expiration
+            except ValueError:
+                return jsonify({'success': False, 'error': 'Invalid date format'})
+        else:
+            donor.expiration_date = None
+        
+        session.commit()
+        return jsonify({'success': True, 'new_date': donor.expiration_date})
+        
+    except Exception as e:
+        session.rollback()
+        app.logger.error(f"Error updating expiration date for donor {donor_id}: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+    finally:
+        session.close()
+
+@app.route("/quick_gift_subscription/<int:donor_id>", methods=["POST"])
+def quick_gift_subscription(donor_id):
+    """AJAX endpoint to gift a subscription to another donor"""
+    session = Session()
+    try:
+        donor = session.query(EagleTrustFundDonor).filter_by(base_donor_id=donor_id).first()
+        if not donor:
+            return jsonify({'success': False, 'error': 'Donor not found'})
+        
+        recipient_id = request.json.get('recipient_id')
+        if not recipient_id:
+            return jsonify({'success': False, 'error': 'Recipient ID is required'})
+        
+        try:
+            recipient_id = int(recipient_id)
+        except ValueError:
+            return jsonify({'success': False, 'error': 'Invalid recipient ID'})
+        
+        # Check if recipient donor exists
+        recipient = session.query(EagleTrustFundDonor).filter_by(base_donor_id=recipient_id).first()
+        if not recipient:
+            return jsonify({'success': False, 'error': f'Recipient donor #{recipient_id} not found'})
+        
+        # Update the gift relationship
+        donor.gifted_to_donor_id = recipient_id
+        
+        # Update recipient's status to Active
+        recipient.donor_status = 'A'
+        recipient.donor_status_desc = 'ACTIVE'
+        recipient.newsletter_status = 'A'
+        recipient.newsletter_status_desc = 'ACTIVE'
+        
+        session.commit()
+        
+        recipient_name = recipient.formatted_full_name or f"{recipient.first_name or ''} {recipient.last_name or ''}".strip()
+        return jsonify({
+            'success': True, 
+            'recipient_name': recipient_name,
+            'recipient_id': recipient_id
+        })
+        
+    except Exception as e:
+        session.rollback()
+        app.logger.error(f"Error creating gift subscription for donor {donor_id}: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+    finally:
+        session.close()
+
+@app.route("/remove_gift_subscription/<int:donor_id>", methods=["POST"])
+def remove_gift_subscription(donor_id):
+    """AJAX endpoint to remove a gift subscription"""
+    session = Session()
+    try:
+        donor = session.query(EagleTrustFundDonor).filter_by(base_donor_id=donor_id).first()
+        if not donor:
+            return jsonify({'success': False, 'error': 'Donor not found'})
+        
+        donor.gifted_to_donor_id = None
+        session.commit()
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        session.rollback()
+        app.logger.error(f"Error removing gift subscription for donor {donor_id}: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+    finally:
+        session.close()
+
+@app.route("/search_donor_by_name")
+def search_donor_by_name():
+    """AJAX endpoint to search for donors by name"""
+    query = request.args.get('q', '').strip()
+    if len(query) < 2:
+        return jsonify([])
+    
+    session = Session()
+    try:
+        # Search by first name, last name, or formatted full name
+        donors = session.query(EagleTrustFundDonor).filter(
+            or_(
+                EagleTrustFundDonor.first_name.ilike(f"%{query}%"),
+                EagleTrustFundDonor.last_name.ilike(f"%{query}%"),
+                EagleTrustFundDonor.formatted_full_name.ilike(f"%{query}%")
+            )
+        ).limit(10).all()
+        
+        results = []
+        for donor in donors:
+            name = donor.formatted_full_name or f"{donor.first_name or ''} {donor.last_name or ''}".strip()
+            results.append({
+                'id': donor.base_donor_id,
+                'name': name,
+                'city': donor.city or '',
+                'state': donor.state or ''
+            })
+        
+        return jsonify(results)
+        
     finally:
         session.close()
 

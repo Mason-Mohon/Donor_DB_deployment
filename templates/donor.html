@@ -224,6 +224,51 @@
             color: white;
             text-decoration: none;
         }
+        .quick-edit-btn, .save-btn, .cancel-btn, .remove-gift-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+        .save-btn {
+            background: #28a745;
+        }
+        .cancel-btn {
+            background: #6c757d;
+        }
+        .remove-gift-btn {
+            background: #dc3545;
+        }
+        .quick-edit-btn:hover, .save-btn:hover, .cancel-btn:hover, .remove-gift-btn:hover {
+            opacity: 0.8;
+        }
+        #recipient-search, #recipient-id {
+            padding: 4px 8px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+        }
+        #search-results {
+            position: absolute;
+            background: white;
+            border: 1px solid #ccc;
+            border-top: none;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+            width: 250px;
+        }
+        .search-result-item {
+            padding: 8px;
+            cursor: pointer;
+            border-bottom: 1px solid #eee;
+        }
+        .search-result-item:hover {
+            background: #f5f5f5;
+        }
         @media (max-width: 768px) {
             .main-content {
                 grid-template-columns: 1fr;
@@ -276,12 +321,23 @@
                 <span class="field-label">Name:</span>
                 <span class="field-value">{{ [donor.name_prefix, donor.first_name, donor.last_name, donor.suffix] | reject('none') | join(' ') or '<span class="empty-value">Not specified</span>'|safe }}</span>
             </div>
-            {% set secondary_parts = [donor.secondary_title, donor.secondary_first_name, donor.secondary_last_name, donor.secondary_suffix] | reject('none') | list %}
-            {% set secondary_clean = secondary_parts | reject('equalto', 'nan') | list %}
-            {% if secondary_clean and secondary_clean != ['nan'] %}
+            {% set secondary_parts = [] %}
+            {% if donor.secondary_title and donor.secondary_title|lower != 'nan' %}
+                {% set _ = secondary_parts.append(donor.secondary_title) %}
+            {% endif %}
+            {% if donor.secondary_first_name and donor.secondary_first_name|lower != 'nan' %}
+                {% set _ = secondary_parts.append(donor.secondary_first_name) %}
+            {% endif %}
+            {% if donor.secondary_last_name and donor.secondary_last_name|lower != 'nan' %}
+                {% set _ = secondary_parts.append(donor.secondary_last_name) %}
+            {% endif %}
+            {% if donor.secondary_suffix and donor.secondary_suffix|lower != 'nan' %}
+                {% set _ = secondary_parts.append(donor.secondary_suffix) %}
+            {% endif %}
+            {% if secondary_parts %}
                 <div class="field-group">
                     <span class="field-label">Secondary Name:</span>
-                    <span class="field-value">{{ secondary_clean | join(' ') }}</span>
+                    <span class="field-value">{{ secondary_parts | join(' ') }}</span>
                 </div>
             {% endif %}
             {% if donor.salutation_dear %}
@@ -290,18 +346,7 @@
                     <span class="field-value">{{ donor.salutation_dear }}</span>
                 </div>
             {% endif %}
-            {% if donor.birth_date %}
-                <div class="field-group">
-                    <span class="field-label">Birth Date:</span>
-                    <span class="field-value">{{ donor.birth_date }}</span>
-                </div>
-            {% endif %}
-            {% if donor.gender_code %}
-                <div class="field-group">
-                    <span class="field-label">Gender:</span>
-                    <span class="field-value">{{ donor.gender_code }}</span>
-                </div>
-            {% endif %}
+
             {% if donor.date_added_to_database %}
                 <div class="field-group">
                     <span class="field-label">Date Added:</span>
@@ -369,12 +414,57 @@
                     {{ donor.newsletter_status_desc or donor.newsletter_status or '<span class="empty-value">Not specified</span>'|safe }}
                 </span>
             </div>
-            {% if donor.expiration_date %}
+            <div class="field-group">
+                <span class="field-label">Expiration Date:</span>
+                <span class="field-value" id="expiration-display">
+                    <span id="expiration-text">{{ donor.expiration_date or 'Not set' }}</span>
+                    <button type="button" class="quick-edit-btn" onclick="editExpiration()">✏️ Edit</button>
+                </span>
+                <div id="expiration-edit" style="display: none;">
+                    <input type="date" id="expiration-input" value="{{ donor.expiration_date or '' }}">
+                    <button type="button" class="save-btn" onclick="saveExpiration()">Save</button>
+                    <button type="button" class="cancel-btn" onclick="cancelEditExpiration()">Cancel</button>
+                </div>
+            </div>
+            
+            <h2 style="margin-top: 25px;">Gift Subscriptions</h2>
+            {% if gifted_by %}
                 <div class="field-group">
-                    <span class="field-label">Expiration Date:</span>
-                    <span class="field-value">{{ donor.expiration_date }}</span>
+                    <span class="field-label">Subscription Gifted By:</span>
+                    <span class="field-value">
+                        <a href="{{ url_for('donor', donor_id=gifted_by.base_donor_id) }}" class="donor-link">
+                            #{{ gifted_by.base_donor_id }} - {{ gifted_by.formatted_full_name or (gifted_by.first_name + ' ' + gifted_by.last_name) }}
+                        </a>
+                    </span>
                 </div>
             {% endif %}
+            
+            <div class="field-group">
+                <span class="field-label">Has Gifted To:</span>
+                <span class="field-value" id="gift-display">
+                    {% if gifted_to %}
+                        <a href="{{ url_for('donor', donor_id=gifted_to.base_donor_id) }}" class="donor-link" id="gifted-to-link">
+                            #{{ gifted_to.base_donor_id }} - {{ gifted_to.formatted_full_name or (gifted_to.first_name + ' ' + gifted_to.last_name) }}
+                        </a>
+                        <button type="button" class="remove-gift-btn" onclick="removeGift()">❌ Remove</button>
+                    {% else %}
+                        <span id="no-gift-text">No active gift subscription</span>
+                        <button type="button" class="quick-edit-btn" onclick="addGift()">🎁 Gift Subscription</button>
+                    {% endif %}
+                </span>
+                <div id="gift-edit" style="display: none;">
+                    <div style="margin-bottom: 10px;">
+                        <input type="text" id="recipient-search" placeholder="Search by name or enter donor ID" 
+                               style="width: 250px; margin-right: 10px;">
+                        <div id="search-results" style="position: absolute; background: white; border: 1px solid #ccc; border-top: none; max-height: 200px; overflow-y: auto; z-index: 1000; display: none;"></div>
+                    </div>
+                    <div>
+                        <input type="number" id="recipient-id" placeholder="Recipient Donor ID" style="margin-right: 10px;">
+                        <button type="button" class="save-btn" onclick="saveGift()">Gift Subscription</button>
+                        <button type="button" class="cancel-btn" onclick="cancelAddGift()">Cancel</button>
+                    </div>
+                </div>
+            </div>
             
             <div class="status-badges">
                 {% if donor.donor_status_desc %}
@@ -490,5 +580,211 @@
             </div>
         {% endif %}
     </div>
+
+    <script>
+        // Quick edit expiration date
+        function editExpiration() {
+            document.getElementById('expiration-display').style.display = 'none';
+            document.getElementById('expiration-edit').style.display = 'block';
+        }
+
+        function cancelEditExpiration() {
+            document.getElementById('expiration-display').style.display = 'block';
+            document.getElementById('expiration-edit').style.display = 'none';
+        }
+
+        function saveExpiration() {
+            const newDate = document.getElementById('expiration-input').value;
+            
+            fetch(`/quick_edit_expiration/{{ donor.base_donor_id }}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    expiration_date: newDate
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('expiration-text').textContent = data.new_date || 'Not set';
+                    cancelEditExpiration();
+                    showMessage('Expiration date updated successfully!', 'success');
+                } else {
+                    showMessage('Error: ' + data.error, 'error');
+                }
+            })
+            .catch(error => {
+                showMessage('Error updating expiration date', 'error');
+                console.error('Error:', error);
+            });
+        }
+
+        // Gift subscription functionality
+        function addGift() {
+            document.getElementById('gift-display').style.display = 'none';
+            document.getElementById('gift-edit').style.display = 'block';
+            document.getElementById('recipient-search').focus();
+        }
+
+        function cancelAddGift() {
+            document.getElementById('gift-display').style.display = 'block';
+            document.getElementById('gift-edit').style.display = 'none';
+            document.getElementById('recipient-search').value = '';
+            document.getElementById('recipient-id').value = '';
+            document.getElementById('search-results').style.display = 'none';
+        }
+
+        function saveGift() {
+            const recipientId = document.getElementById('recipient-id').value;
+            
+            if (!recipientId) {
+                showMessage('Please enter a recipient donor ID', 'error');
+                return;
+            }
+
+            fetch(`/quick_gift_subscription/{{ donor.base_donor_id }}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    recipient_id: recipientId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Update the display to show the new gift
+                    const giftDisplay = document.getElementById('gift-display');
+                    giftDisplay.innerHTML = `
+                        <a href="/donor/${data.recipient_id}" class="donor-link" id="gifted-to-link">
+                            #${data.recipient_id} - ${data.recipient_name}
+                        </a>
+                        <button type="button" class="remove-gift-btn" onclick="removeGift()">❌ Remove</button>
+                    `;
+                    cancelAddGift();
+                    showMessage('Gift subscription created successfully!', 'success');
+                } else {
+                    showMessage('Error: ' + data.error, 'error');
+                }
+            })
+            .catch(error => {
+                showMessage('Error creating gift subscription', 'error');
+                console.error('Error:', error);
+            });
+        }
+
+        function removeGift() {
+            if (!confirm('Are you sure you want to remove this gift subscription?')) {
+                return;
+            }
+
+            fetch(`/remove_gift_subscription/{{ donor.base_donor_id }}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Update the display to show no gift
+                    const giftDisplay = document.getElementById('gift-display');
+                    giftDisplay.innerHTML = `
+                        <span id="no-gift-text">No active gift subscription</span>
+                        <button type="button" class="quick-edit-btn" onclick="addGift()">🎁 Gift Subscription</button>
+                    `;
+                    showMessage('Gift subscription removed successfully!', 'success');
+                } else {
+                    showMessage('Error: ' + data.error, 'error');
+                }
+            })
+            .catch(error => {
+                showMessage('Error removing gift subscription', 'error');
+                console.error('Error:', error);
+            });
+        }
+
+        // Donor search functionality
+        let searchTimeout;
+        document.getElementById('recipient-search').addEventListener('input', function() {
+            const query = this.value.trim();
+            
+            clearTimeout(searchTimeout);
+            
+            if (query.length < 2) {
+                document.getElementById('search-results').style.display = 'none';
+                return;
+            }
+
+            // If it's a number, put it directly in the recipient ID field
+            if (!isNaN(query) && query !== '') {
+                document.getElementById('recipient-id').value = query;
+            }
+
+            searchTimeout = setTimeout(() => {
+                fetch(`/search_donor_by_name?q=${encodeURIComponent(query)}`)
+                .then(response => response.json())
+                .then(data => {
+                    const resultsDiv = document.getElementById('search-results');
+                    resultsDiv.innerHTML = '';
+                    
+                    if (data.length > 0) {
+                        data.forEach(donor => {
+                            const item = document.createElement('div');
+                            item.className = 'search-result-item';
+                            item.innerHTML = `<strong>#${donor.id} - ${donor.name}</strong><br><small>${donor.city}, ${donor.state}</small>`;
+                            item.onclick = () => {
+                                document.getElementById('recipient-id').value = donor.id;
+                                document.getElementById('recipient-search').value = `#${donor.id} - ${donor.name}`;
+                                resultsDiv.style.display = 'none';
+                            };
+                            resultsDiv.appendChild(item);
+                        });
+                        resultsDiv.style.display = 'block';
+                    } else {
+                        resultsDiv.style.display = 'none';
+                    }
+                })
+                .catch(error => {
+                    console.error('Search error:', error);
+                });
+            }, 300);
+        });
+
+        // Hide search results when clicking outside
+        document.addEventListener('click', function(event) {
+            const searchResults = document.getElementById('search-results');
+            const searchInput = document.getElementById('recipient-search');
+            
+            if (!searchResults.contains(event.target) && event.target !== searchInput) {
+                searchResults.style.display = 'none';
+            }
+        });
+
+        // Message display function
+        function showMessage(message, type) {
+            // Create a message element
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `alert alert-${type}`;
+            messageDiv.textContent = message;
+            messageDiv.style.position = 'fixed';
+            messageDiv.style.top = '20px';
+            messageDiv.style.right = '20px';
+            messageDiv.style.zIndex = '9999';
+            messageDiv.style.maxWidth = '400px';
+            
+            document.body.appendChild(messageDiv);
+            
+            // Remove the message after 3 seconds
+            setTimeout(() => {
+                if (messageDiv.parentNode) {
+                    messageDiv.parentNode.removeChild(messageDiv);
+                }
+            }, 3000);
+        }
+    </script>
 </body>
 </html>

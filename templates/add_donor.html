@@ -196,6 +196,7 @@
                     <div class="form-group">
                         <label for="date_added_to_database">Date Added to Database (YYYY-MM-DD)</label>
                         <input type="date" id="date_added_to_database" name="date_added_to_database" value="{{ donor.date_added_to_database or '' }}">
+                        <small>Auto-filled with today's date. You can change this if needed.</small>
                     </div>
                     <div class="form-group">
                         <label for="expiration_date">Membership/Subscription Expiration Date</label>
@@ -304,5 +305,16 @@
             </div>
         </form>
     </div>
+
+    <script>
+        // Auto-fill date_added_to_database with today's date if not already set
+        document.addEventListener('DOMContentLoaded', function() {
+            const dateField = document.getElementById('date_added_to_database');
+            if (!dateField.value) {
+                const today = new Date().toISOString().split('T')[0];
+                dateField.value = today;
+            }
+        });
+    </script>
 </body>
 </html> 
