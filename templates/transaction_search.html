@@ -302,6 +302,17 @@
                 </ul>
             {% endif %}
 
+            {% if is_batch_search and batch_metadata %}
+                <div style="margin: 20px 0; padding: 15px; background: #e8f4ff; border-radius: 5px; border-left: 4px solid #007bff;">
+                    <h4 style="margin-top: 0; color: #007bff;">Batch Information:</h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px;">
+                        <div><strong>Batch Number:</strong> {{ batch_metadata.batch_number }}</div>
+                        <div><strong>Transaction Date:</strong> {{ batch_metadata.date }}</div>
+                        <div><strong>Payment Method:</strong> {{ batch_metadata.payment_method }}</div>
+                    </div>
+                </div>
+            {% endif %}
+
             {% if is_batch_search and payment_type_totals %}
                 <div style="margin: 20px 0; padding: 15px; background: #f0f8ff; border-radius: 5px;">
                     <h4 style="margin-top: 0; color: #0066cc;">Batch Summary by Payment Type:</h4>

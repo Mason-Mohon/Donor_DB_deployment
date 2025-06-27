@@ -1114,14 +1114,29 @@ def transaction_search():
             
             # Calculate payment type totals if searching by batch
             payment_type_totals = None
+            batch_metadata = None
             is_batch_search = bool(search_params.get('update_batch_num'))
             if is_batch_search:
                 # Get all transactions for this batch (not just the paginated ones)
                 all_batch_transactions = query.order_by(EagleTrustFundTransaction.trans_date.desc()).all()
                 payment_type_totals = {}
                 
+                # Collect batch metadata from first transaction
+                if all_batch_transactions:
+                    first_trans = all_batch_transactions[0]
+                    batch_metadata = {
+                        'batch_number': search_params.get('update_batch_num'),
+                        'date': first_trans.trans_date.strftime('%Y-%m-%d'),
+                        'payment_method': first_trans.payment_method or 'Not specified'
+                    }
+                
                 for trans in all_batch_transactions:
                     payment_type = trans.payment_type or 'Unknown'
+                    
+                    # Combine N and M payment types
+                    if payment_type in ['N', 'M']:
+                        payment_type = 'N/M'
+                    
                     if payment_type not in payment_type_totals:
                         payment_type_totals[payment_type] = {
                             'count': 0,
@@ -1133,10 +1148,8 @@ def transaction_search():
                     
                     # Set description based on payment type
                     if not payment_type_totals[payment_type]['description']:
-                        if payment_type == 'N':
-                            payment_type_totals[payment_type]['description'] = 'SUBS P.S. REPORT'
-                        elif payment_type == 'M':
-                            payment_type_totals[payment_type]['description'] = 'PURCH MATERIALS ETF'
+                        if payment_type == 'N/M':
+                            payment_type_totals[payment_type]['description'] = 'ETF/SUBS PS REPORT'
                         elif payment_type == 'G':
                             payment_type_totals[payment_type]['description'] = 'EAGLE TRUST FUND'
                         elif payment_type == 'L':
@@ -1160,7 +1173,8 @@ def transaction_search():
                 total_pages=total_pages,
                 total_results=total_results,
                 payment_type_totals=payment_type_totals,
-                is_batch_search=is_batch_search
+                is_batch_search=is_batch_search,
+                batch_metadata=batch_metadata
             )
 
         finally:
@@ -1207,45 +1221,55 @@ def generate_csv(data, headers, filename):
         download_name=filename
     )
 
-def generate_pdf(data, headers, filename, title, payment_type_totals=None):
+def generate_pdf(data, headers, filename, title, payment_type_totals=None, batch_metadata=None):
     """Generate PDF file from data with dynamic sizing based on column count"""
     from reportlab.lib.pagesizes import letter, A4, A3, A2, A1, landscape, portrait
     
     buffer = io.BytesIO()
     
-    # Determine optimal page size and font size based on number of columns
-    num_columns = len(headers)
+    # Determine if this is a batch search (4 columns: Donor ID, Donor Name, Type, Amount)
+    is_batch_pdf = batch_metadata is not None and len(headers) == 4
     
-    if num_columns <= 6:
-        # Small tables - use letter size
-        pagesize = landscape(letter)
+    if is_batch_pdf:
+        # Batch PDFs use portrait letter size for clean layout
+        pagesize = portrait(letter)
         header_font_size = 10
-        data_font_size = 8
+        data_font_size = 9
         margin = 30
-    elif num_columns <= 10:
-        # Medium tables - use A4 landscape
-        pagesize = landscape(A4)
-        header_font_size = 9
-        data_font_size = 7
-        margin = 20
-    elif num_columns <= 15:
-        # Large tables - use A3 landscape
-        pagesize = landscape(A3)
-        header_font_size = 8
-        data_font_size = 6
-        margin = 20
-    elif num_columns <= 25:
-        # Very large tables - use A2 landscape
-        pagesize = landscape(A2)
-        header_font_size = 7
-        data_font_size = 5
-        margin = 15
     else:
-        # Extremely large tables - use A1 landscape
-        pagesize = landscape(A1)
-        header_font_size = 6
-        data_font_size = 4
-        margin = 15
+        # Determine optimal page size and font size based on number of columns for regular searches
+        num_columns = len(headers)
+        
+        if num_columns <= 6:
+            # Small tables - use letter size
+            pagesize = landscape(letter)
+            header_font_size = 10
+            data_font_size = 8
+            margin = 30
+        elif num_columns <= 10:
+            # Medium tables - use A4 landscape
+            pagesize = landscape(A4)
+            header_font_size = 9
+            data_font_size = 7
+            margin = 20
+        elif num_columns <= 15:
+            # Large tables - use A3 landscape
+            pagesize = landscape(A3)
+            header_font_size = 8
+            data_font_size = 6
+            margin = 20
+        elif num_columns <= 25:
+            # Very large tables - use A2 landscape
+            pagesize = landscape(A2)
+            header_font_size = 7
+            data_font_size = 5
+            margin = 15
+        else:
+            # Extremely large tables - use A1 landscape
+            pagesize = landscape(A1)
+            header_font_size = 6
+            data_font_size = 4
+            margin = 15
     
     doc = SimpleDocTemplate(
         buffer,
@@ -1267,6 +1291,14 @@ def generate_pdf(data, headers, filename, title, payment_type_totals=None):
     normal_style.fontSize = max(8, data_font_size + 1)
     
     elements.append(Paragraph(title, title_style))
+    
+    # Add batch metadata if provided
+    if batch_metadata:
+        elements.append(Paragraph(f"<strong>Batch Number:</strong> {batch_metadata['batch_number']}", normal_style))
+        elements.append(Paragraph(f"<strong>Transaction Date:</strong> {batch_metadata['date']}", normal_style))
+        elements.append(Paragraph(f"<strong>Payment Method:</strong> {batch_metadata['payment_method']}", normal_style))
+        elements.append(Paragraph("<br/>", normal_style))  # Add some space
+    
     elements.append(Paragraph(f"Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", normal_style))
     
     # Add payment type totals if provided
@@ -1324,17 +1356,27 @@ def generate_pdf(data, headers, filename, title, payment_type_totals=None):
     # Calculate available width
     page_width = pagesize[0] - (2 * margin)
     
-    # Set column widths - distribute evenly but with minimums
-    min_col_width = 0.5 * inch
-    available_width = page_width - (num_columns * min_col_width)
-    
-    if available_width > 0:
-        # Distribute extra width evenly
-        col_width = min_col_width + (available_width / num_columns)
-        col_widths = [col_width] * num_columns
+    if is_batch_pdf:
+        # Custom column widths for batch PDFs: Donor ID, Donor Name, Type, Amount
+        col_widths = [
+            0.8 * inch,    # Donor ID - narrow
+            3.5 * inch,    # Donor Name - wide
+            0.6 * inch,    # Type - very narrow
+            1.0 * inch     # Amount - medium
+        ]
     else:
-        # Use minimum widths - will cause horizontal scrolling but prevent cutoff
-        col_widths = [min_col_width] * num_columns
+        # Set column widths - distribute evenly but with minimums for regular searches
+        num_columns = len(headers)
+        min_col_width = 0.5 * inch
+        available_width = page_width - (num_columns * min_col_width)
+        
+        if available_width > 0:
+            # Distribute extra width evenly
+            col_width = min_col_width + (available_width / num_columns)
+            col_widths = [col_width] * num_columns
+        else:
+            # Use minimum widths - will cause horizontal scrolling but prevent cutoff
+            col_widths = [min_col_width] * num_columns
     
     table = Table(table_data, colWidths=col_widths, repeatRows=1)
     table.setStyle(TableStyle([
@@ -1549,12 +1591,27 @@ def download_transaction_results(format):
         
         # Calculate payment type totals if searching by batch
         payment_type_totals = None
+        batch_metadata = None
         is_batch_search = bool(search_params.get('update_batch_num'))
         if is_batch_search:
             payment_type_totals = {}
             
+            # Collect batch metadata from first transaction
+            if transactions:
+                first_trans = transactions[0]
+                batch_metadata = {
+                    'batch_number': search_params.get('update_batch_num'),
+                    'date': first_trans.trans_date.strftime('%Y-%m-%d'),
+                    'payment_method': first_trans.payment_method or 'Not specified'
+                }
+            
             for trans in transactions:
                 payment_type = trans.payment_type or 'Unknown'
+                
+                # Combine N and M payment types
+                if payment_type in ['N', 'M']:
+                    payment_type = 'N/M'
+                
                 if payment_type not in payment_type_totals:
                     payment_type_totals[payment_type] = {
                         'count': 0,
@@ -1566,10 +1623,8 @@ def download_transaction_results(format):
                 
                 # Set description based on payment type
                 if not payment_type_totals[payment_type]['description']:
-                    if payment_type == 'N':
-                        payment_type_totals[payment_type]['description'] = 'SUBS P.S. REPORT'
-                    elif payment_type == 'M':
-                        payment_type_totals[payment_type]['description'] = 'PURCH MATERIALS ETF'
+                    if payment_type == 'N/M':
+                        payment_type_totals[payment_type]['description'] = 'ETF/SUBS PS REPORT'
                     elif payment_type == 'G':
                         payment_type_totals[payment_type]['description'] = 'EAGLE TRUST FUND'
                     elif payment_type == 'L':
@@ -1583,28 +1638,42 @@ def download_transaction_results(format):
                     else:
                         payment_type_totals[payment_type]['description'] = trans.bluebook_job_description or 'Unknown'
         
-        # Define columns
-        headers = ['Date', 'Donor Name', 'Amount', 'Payment Type', 'Payment Method', 'Batch #', 'Job Description']
+        # Define columns based on whether it's a batch search
+        if is_batch_search:
+            # For batch PDFs: only Donor ID, Donor Name, Type, Amount
+            headers = ['Donor ID', 'Donor Name', 'Type', 'Amount']
+        else:
+            # For regular searches: full columns
+            headers = ['Date', 'Donor Name', 'Amount', 'Payment Type', 'Payment Method', 'Batch #', 'Job Description']
         
         # Prepare transaction data rows
         transaction_data = []
         for trans in transactions:
-            # Apply display logic for job description
-            job_description = trans.bluebook_job_description or ''
-            if (trans.trans_date.year > 2018 and 
-                trans.payment_type == "E" and 
-                trans.bluebook_job_description == "DUES OR EAGLES"):
-                job_description = "PS EAGLES"
-            
-            transaction_data.append([
-                trans.trans_date.strftime('%Y-%m-%d'),
-                trans.donor.formatted_full_name or f"{trans.donor.first_name} {trans.donor.last_name}",
-                format_currency(trans.trans_amount),
-                trans.payment_type or '',
-                trans.payment_method or '',
-                trans.update_batch_num or '',
-                job_description
-            ])
+            if is_batch_search:
+                # Simplified batch format
+                transaction_data.append([
+                    str(trans.donor.base_donor_id),
+                    trans.donor.formatted_full_name or f"{trans.donor.first_name} {trans.donor.last_name}".strip(),
+                    trans.payment_type or '',
+                    format_currency(trans.trans_amount)
+                ])
+            else:
+                # Full format for non-batch searches
+                job_description = trans.bluebook_job_description or ''
+                if (trans.trans_date.year > 2018 and 
+                    trans.payment_type == "E" and 
+                    trans.bluebook_job_description == "DUES OR EAGLES"):
+                    job_description = "PS EAGLES"
+                
+                transaction_data.append([
+                    trans.trans_date.strftime('%Y-%m-%d'),
+                    trans.donor.formatted_full_name or f"{trans.donor.first_name} {trans.donor.last_name}",
+                    format_currency(trans.trans_amount),
+                    trans.payment_type or '',
+                    trans.payment_method or '',
+                    trans.update_batch_num or '',
+                    job_description
+                ])
         
         # Generate appropriate file format
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -1614,7 +1683,7 @@ def download_transaction_results(format):
             title = 'Transaction Search Results'
             if is_batch_search and search_params.get('update_batch_num'):
                 title = f'Batch {search_params.get("update_batch_num")} - Transaction Results'
-            return generate_pdf(transaction_data, headers, f'transaction_results_{timestamp}.pdf', title, payment_type_totals)
+            return generate_pdf(transaction_data, headers, f'transaction_results_{timestamp}.pdf', title, payment_type_totals, batch_metadata)
         else:
             abort(400, "Invalid format specified")
             
@@ -1908,6 +1977,129 @@ def mailing_list_generator():
     
     # GET request - show form
     return render_template("mailing_list_generator.html")
+
+@app.route("/transaction/<int:transaction_id>/edit", methods=["GET", "POST"])
+def edit_transaction(transaction_id):
+    session = Session()
+    try:
+        transaction = session.query(EagleTrustFundTransaction).filter_by(transaction_id=transaction_id).first()
+        if not transaction:
+            abort(404, f"Transaction #{transaction_id} not found")
+
+        # Get the donor for this transaction
+        donor = session.query(EagleTrustFundDonor).filter_by(base_donor_id=transaction.base_donor_id).first()
+        if not donor:
+            abort(404, f"Donor #{transaction.base_donor_id} not found")
+
+        if request.method == "POST":
+            # Store original values for summary field recalculation
+            original_amount = transaction.trans_amount
+            original_date = transaction.trans_date
+            
+            # Validate form data
+            trans_date_str = request.form.get('trans_date')
+            trans_amount_str = request.form.get('trans_amount', "").strip()
+            
+            errors = []
+            trans_date = parse_date(trans_date_str)
+            if not trans_date:
+                errors.append("Transaction date is required and must be in YYYY-MM-DD format.")
+            
+            trans_amount = None
+            if not trans_amount_str:
+                errors.append("Transaction amount is required.")
+            else:
+                try:
+                    trans_amount = Decimal(trans_amount_str)
+                    if trans_amount < 0:
+                        errors.append("Transaction amount cannot be negative.")
+                except InvalidOperation:
+                    errors.append("Invalid transaction amount.")
+            
+            if errors:
+                for error in errors:
+                    flash(error, "error")
+                return render_template("edit_transaction.html", transaction=transaction, donor=donor)
+
+            # Update transaction fields
+            transaction.trans_date = trans_date
+            transaction.trans_amount = trans_amount
+            transaction.appeal_code = request.form.get('appeal_code', "").strip() or None
+            transaction.payment_type = request.form.get('payment_type', "").strip() or None
+            transaction.update_batch_num = request.form.get('update_batch_num', "").strip() or None
+            transaction.bluebook_job_description = request.form.get('bluebook_job_description', "").strip() or None
+            transaction.bluebook_list_description = request.form.get('bluebook_list_description', "").strip() or None
+            transaction.payment_method = request.form.get('payment_method', "").strip() or None
+
+            # Recalculate donor summary fields by getting all transactions for this donor
+            all_transactions = session.query(EagleTrustFundTransaction).filter_by(base_donor_id=donor.base_donor_id).all()
+            
+            if all_transactions:
+                # Reset donor summary fields
+                donor.total_dollar_amount = Decimal('0')
+                donor.total_responses_includes_zero = 0
+                donor.total_responses_non_zero = 0
+                donor.latest_date = None
+                donor.latest_amount = None
+                donor.largest_date = None
+                donor.largest_amount = None
+                donor.inception_date = None
+                donor.inception_amount = None
+                
+                # Recalculate from all transactions
+                for tx in all_transactions:
+                    # Update totals
+                    donor.total_dollar_amount += tx.trans_amount
+                    donor.total_responses_includes_zero += 1
+                    if tx.trans_amount > 0:
+                        donor.total_responses_non_zero += 1
+                    
+                    # Update latest transaction
+                    latest_date_obj = None
+                    if donor.latest_date:
+                        try:
+                            latest_date_obj = datetime.strptime(donor.latest_date, '%Y-%m-%d').date()
+                        except ValueError:
+                            pass
+                    
+                    if latest_date_obj is None or tx.trans_date > latest_date_obj:
+                        donor.latest_date = tx.trans_date.strftime('%Y-%m-%d')
+                        donor.latest_amount = tx.trans_amount
+                    
+                    # Update largest transaction
+                    if donor.largest_amount is None or tx.trans_amount > donor.largest_amount:
+                        donor.largest_amount = tx.trans_amount
+                        donor.largest_date = tx.trans_date.strftime('%Y-%m-%d')
+                    
+                    # Update inception transaction
+                    inception_date_obj = None
+                    if donor.inception_date:
+                        try:
+                            inception_date_obj = datetime.strptime(donor.inception_date, '%Y-%m-%d').date()
+                        except ValueError:
+                            pass
+                    
+                    if inception_date_obj is None or tx.trans_date < inception_date_obj:
+                        donor.inception_date = tx.trans_date.strftime('%Y-%m-%d')
+                        donor.inception_amount = tx.trans_amount
+
+            session.commit()
+            flash(f"Transaction updated successfully!", "success")
+            return redirect(url_for("donor", donor_id=donor.base_donor_id))
+
+        else:
+            return render_template("edit_transaction.html", transaction=transaction, donor=donor)
+
+    except Exception as e:
+        session.rollback()
+        app.logger.error(f"Error editing transaction {transaction_id}: {e}")
+        flash(f"Error updating transaction: {e}", "error")
+        if request.method == "POST":
+            return render_template("edit_transaction.html", transaction=transaction, donor=donor)
+        else:
+            return redirect(url_for('home'))
+    finally:
+        session.close()
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT") or os.getenv("FLASK_PORT", 5001))  # Check PORT first, then FLASK_PORT, default to 5001
