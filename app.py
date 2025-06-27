@@ -969,11 +969,26 @@ def batch_transactions():
                 if donor_id not in donors_to_update:
                     donors_to_update[donor_id] = donor
             
-            # If there were validation errors, return with errors
+            # If there were validation errors, return with errors but preserve form data
             if errors:
                 for error in errors:
                     flash(error, "error")
-                return render_template("batch_transactions.html", form_data=request.form)
+                
+                # Preserve all form data including transaction rows
+                preserved_data = dict(request.form)
+                
+                # Get the max row number to recreate the same structure
+                max_row = 0
+                for key in request.form.keys():
+                    if key.startswith('donor_id_'):
+                        try:
+                            row_num = int(key.split('_')[-1])
+                            max_row = max(max_row, row_num)
+                        except ValueError:
+                            continue
+                
+                preserved_data['max_row'] = max_row
+                return render_template("batch_transactions.html", form_data=preserved_data)
             
             if not transactions_to_add:
                 flash("No valid transactions to process.", "warning")
@@ -1019,7 +1034,22 @@ def batch_transactions():
             session.rollback()
             app.logger.error(f"Error processing batch transactions: {e}")
             flash(f"Error processing batch transactions: {e}", "error")
-            return render_template("batch_transactions.html", form_data=request.form)
+            
+            # Preserve all form data including transaction rows
+            preserved_data = dict(request.form)
+            
+            # Get the max row number to recreate the same structure
+            max_row = 0
+            for key in request.form.keys():
+                if key.startswith('donor_id_'):
+                    try:
+                        row_num = int(key.split('_')[-1])
+                        max_row = max(max_row, row_num)
+                    except ValueError:
+                        continue
+            
+            preserved_data['max_row'] = max_row
+            return render_template("batch_transactions.html", form_data=preserved_data)
         finally:
             session.close()
     
@@ -1830,6 +1860,51 @@ def get_donor_info(donor_id):
     except Exception as e:
         app.logger.error(f"Error fetching donor info for ID {donor_id}: {e}")
         return jsonify({'found': False, 'error': str(e)})
+    finally:
+        session.close()
+
+@app.route("/check_existing_batch/<batch_num>")
+def check_existing_batch(batch_num):
+    """AJAX endpoint to check if a batch already exists and return its summary"""
+    session = Session()
+    try:
+        # Get all transactions for this batch
+        existing_transactions = session.query(EagleTrustFundTransaction).filter_by(
+            update_batch_num=batch_num
+        ).all()
+        
+        if not existing_transactions:
+            return jsonify({'exists': False})
+        
+        # Calculate totals
+        total_count = len(existing_transactions)
+        total_amount = sum(t.trans_amount for t in existing_transactions)
+        
+        # Calculate payment type breakdown
+        payment_types = {}
+        for trans in existing_transactions:
+            payment_type = trans.payment_type or 'Unknown'
+            
+            if payment_type not in payment_types:
+                payment_types[payment_type] = {
+                    'count': 0,
+                    'amount': 0,
+                    'description': trans.bluebook_job_description or 'Unknown'
+                }
+            
+            payment_types[payment_type]['count'] += 1
+            payment_types[payment_type]['amount'] += float(trans.trans_amount)
+        
+        return jsonify({
+            'exists': True,
+            'totalCount': total_count,
+            'totalAmount': float(total_amount),
+            'paymentTypes': payment_types
+        })
+    
+    except Exception as e:
+        app.logger.error(f"Error checking existing batch {batch_num}: {e}")
+        return jsonify({'exists': False, 'error': str(e)})
     finally:
         session.close()
 

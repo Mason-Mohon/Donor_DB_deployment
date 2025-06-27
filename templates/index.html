@@ -68,6 +68,28 @@
         button:hover {
             background: #0056b3;
         }
+        .search-button-section {
+            background: #fff;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            text-align: center;
+            border: 2px solid #007bff;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .search-button-section button {
+            font-size: 18px;
+            padding: 15px 30px;
+            background: #007bff;
+            border: none;
+            border-radius: 5px;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .search-button-section button:hover {
+            background: #0056b3;
+        }
         .error-message {
             background-color: #fee;
             color: #c00;
@@ -90,6 +112,21 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
         .filter-section h3 {
+            margin-top: 0;
+            margin-bottom: 20px;
+            color: #333;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        .form-section {
+            background: #fff;
+            padding: 20px;
+            margin: 15px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .form-section h3 {
             margin-top: 0;
             margin-bottom: 20px;
             color: #333;
@@ -129,6 +166,18 @@
             color: #721c24;
             border: 1px solid #f5c6cb;
         }
+        .bottom-actions {
+            margin-top: 40px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            text-align: center;
+            border: 1px solid #dee2e6;
+        }
+        .bottom-actions h3 {
+            margin-top: 0;
+            color: #333;
+        }
     </style>
 </head>
 <body>
@@ -139,7 +188,6 @@
         <a href="{{ url_for('batch_transactions') }}" class="action-button" style="background: #ffc107; color: #212529;">Batch Transactions</a>
         <a href="{{ url_for('donor_quick_add') }}" class="action-button" style="background: #17a2b8; color: white;">Donor Quick Add</a>
         <a href="{{ url_for('mailing_list_generator') }}" class="action-button" style="background: #6f42c1; color: white;">Mailing List</a>
-        <a href="{{ url_for('refresh_transactions') }}" class="action-button" style="background: #dc3545; color: white;">Refresh Transactions</a>
         <a href="{{ url_for('add_donor') }}" class="action-button">Add New Donor</a>
     </div>
     
@@ -222,6 +270,12 @@
             <input type="text" id="phone" name="phone" value="{{ request.form.get('phone', '') }}">
         </div>
 
+        <!-- Prominent Search Button Section -->
+        <div class="search-button-section">
+            <button type="submit">🔍 Search Donors</button>
+            <p style="margin: 10px 0 0 0; color: #666; font-size: 14px;">Search with basic criteria above, or use advanced options below</p>
+        </div>
+
         <div class="form-section">
             <h3>Status Filters</h3>
             <div class="form-group">
@@ -295,8 +349,6 @@
                 <input type="text" id="bluebook_list_description" name="bluebook_list_description" value="{{ request.form.get('bluebook_list_description', '') }}">
             </div>
         </div>
-
-        <button type="submit">Search</button>
     </form>
 
     <div class="search-tips">
@@ -311,6 +363,13 @@
             <li><strong>Default filters:</strong> Deceased/undeliverable donors and non-donors are excluded by default</li>
             <li><strong>Transaction search:</strong> Date must be YYYY-MM-DD format, amount must be exact match</li>
         </ul>
+    </div>
+
+    <!-- Move Refresh Transactions to bottom -->
+    <div class="bottom-actions">
+        <h3>Database Maintenance</h3>
+        <p style="color: #666; margin-bottom: 15px;">Use this tool to update donor summary fields after bulk transaction imports</p>
+        <a href="{{ url_for('refresh_transactions') }}" class="action-button" style="background: #dc3545; color: white;">Refresh Transactions</a>
     </div>
 </body>
 </html>

@@ -267,10 +267,31 @@
         .cancel-btn:hover {
             background: #5a6268;
         }
+        .back-to-search-prominent {
+            display: inline-block;
+            margin: 10px 0 20px 0;
+            background: #007bff;
+            color: white;
+            text-decoration: none;
+            padding: 12px 20px;
+            border-radius: 5px;
+            font-weight: bold;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .back-to-search-prominent:hover {
+            background: #0056b3;
+            color: white;
+            text-decoration: none;
+        }
     </style>
 </head>
 <body>
-    <h1>Search Results</h1>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h1 style="margin: 0;">Search Results</h1>
+        <a href="{{ url_for('home') }}" class="back-to-search-prominent">&larr; Back to Search</a>
+    </div>
     
     <div class="search-summary">
         <h3>Search Criteria:</h3>
@@ -635,8 +656,6 @@
     {% else %}
         <p>No donors found matching your search criteria.</p>
     {% endif %}
-
-    <a href="{{ url_for('home') }}" class="back-link">&larr; Back to Search</a>
 
     <script>
         function showColumnSelector(format) {

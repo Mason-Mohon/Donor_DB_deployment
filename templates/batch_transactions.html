@@ -6,10 +6,83 @@
     <style>
         body {
             font-family: Arial, sans-serif;
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 20px auto;
             padding: 0 20px;
             line-height: 1.6;
+        }
+        .main-layout {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 30px;
+            align-items: start;
+        }
+        .batch-summary {
+            position: sticky;
+            top: 20px;
+            background: #f8f9fa;
+            border: 2px solid #007bff;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .batch-summary h3 {
+            margin-top: 0;
+            color: #007bff;
+            border-bottom: 2px solid #e9ecef;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+        .summary-section {
+            margin-bottom: 20px;
+        }
+        .summary-section h4 {
+            margin: 0 0 10px 0;
+            color: #333;
+            font-size: 16px;
+        }
+        .summary-totals {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #28a745;
+            margin-bottom: 15px;
+        }
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            padding: 5px 0;
+        }
+        .summary-row.total {
+            font-weight: bold;
+            color: #28a745;
+            border-top: 1px solid #dee2e6;
+            padding-top: 10px;
+            margin-top: 10px;
+        }
+        .payment-type-summary {
+            background: white;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            border-left: 3px solid #007bff;
+        }
+        .payment-type-header {
+            font-weight: bold;
+            color: #007bff;
+            margin-bottom: 5px;
+        }
+        .existing-batch-info {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        .existing-batch-info h4 {
+            margin-top: 0;
+            color: #856404;
         }
         .form-container {
             background: #f9f9f9;
@@ -74,21 +147,7 @@
             padding-bottom: 10px;
             margin-bottom: 20px;
         }
-        .transaction-row {
-            display: grid;
-            grid-template-columns: 100px 100px 200px 60px;
-            gap: 15px;
-            margin-bottom: 10px;
-            align-items: end;
-            padding: 10px;
-            border: 1px solid #e9ecef;
-            border-radius: 4px;
-        }
-        .transaction-row.header {
-            background: #f8f9fa;
-            font-weight: bold;
-            border: 2px solid #dee2e6;
-        }
+
         .transaction-row input,
         .transaction-row select {
             padding: 8px;
@@ -249,6 +308,137 @@
             border-color: #007bff;
             background-color: #f8fcff;
         }
+        .back-to-search-prominent {
+            display: inline-block;
+            margin: 10px 0 20px 0;
+            background: #007bff;
+            color: white;
+            text-decoration: none;
+            padding: 12px 20px;
+            border-radius: 5px;
+            font-weight: bold;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .back-to-search-prominent:hover {
+            background: #0056b3;
+            color: white;
+            text-decoration: none;
+        }
+        .add-rows-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            border: 1px solid #dee2e6;
+        }
+        .add-rows-input {
+            width: 60px;
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            text-align: center;
+        }
+        .transaction-number {
+            font-weight: bold;
+            color: #007bff;
+            background: #e8f4ff;
+            padding: 8px;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            margin-right: 10px;
+        }
+        .transaction-row {
+            display: grid;
+            grid-template-columns: 50px 100px 100px 200px 60px;
+            gap: 15px;
+            margin-bottom: 10px;
+            align-items: end;
+            padding: 10px;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+        }
+        .transaction-row.header {
+            background: #f8f9fa;
+            font-weight: bold;
+            border: 2px solid #dee2e6;
+            grid-template-columns: 50px 100px 100px 200px 60px;
+        }
+        .confirmation-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .confirmation-dialog {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+        .confirmation-dialog h3 {
+            margin-top: 0;
+            color: #007bff;
+            border-bottom: 2px solid #e9ecef;
+            padding-bottom: 10px;
+        }
+        .confirmation-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: flex-end;
+            margin-top: 25px;
+        }
+        .confirm-button {
+            background: #28a745;
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .confirm-button:hover {
+            background: #218838;
+        }
+        .cancel-button {
+            background: #6c757d;
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .cancel-button:hover {
+            background: #5a6268;
+        }
+        @media (max-width: 1200px) {
+            .main-layout {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            .batch-summary {
+                position: relative;
+                order: -1;
+            }
+        }
         @media (max-width: 768px) {
             .transaction-row {
                 grid-template-columns: 1fr;
@@ -267,18 +457,21 @@
     </style>
 </head>
 <body>
-    <a href="{{ url_for('home') }}" class="back-link">&larr; Back to Search</a>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h1 style="margin: 0;">Batch Transaction Update</h1>
+        <a href="{{ url_for('home') }}" class="back-to-search-prominent">&larr; Back to Search</a>
+    </div>
     
-    <div class="form-container">
-        <h1>Batch Transaction Update</h1>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
 
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category }}">{{ message }}</div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
+    <div class="main-layout">
+        <div class="form-container">
 
         <div class="instructions">
             <h3>Instructions:</h3>
@@ -318,9 +511,16 @@
             <div class="transaction-table">
                 <h2>Individual Transactions</h2>
                 
-                <button type="button" class="add-row-button" onclick="addTransactionRow()">+ Add Row</button>
+                <div class="add-rows-controls">
+                    <button type="button" class="add-row-button" onclick="addTransactionRow()">+ Add 1 Row</button>
+                    <span>or</span>
+                    <label for="rows-to-add">Add multiple:</label>
+                    <input type="number" id="rows-to-add" class="add-rows-input" min="1" max="50" value="5">
+                    <button type="button" class="add-row-button" onclick="addMultipleRows()">+ Add Multiple Rows</button>
+                </div>
                 
                 <div class="transaction-row header">
+                    <div>#</div>
                     <div>Donor ID</div>
                     <div>Amount</div>
                     <div>Payment Type</div>
@@ -330,17 +530,86 @@
                 <div id="transaction-rows">
                     <!-- Initial rows will be added by JavaScript -->
                 </div>
+                
+                <div class="add-rows-controls">
+                    <button type="button" class="add-row-button" onclick="addTransactionRow()">+ Add 1 Row</button>
+                    <span>or</span>
+                    <label for="rows-to-add-bottom">Add multiple:</label>
+                    <input type="number" id="rows-to-add-bottom" class="add-rows-input" min="1" max="50" value="5">
+                    <button type="button" class="add-row-button" onclick="addMultipleRowsBottom()">+ Add Multiple Rows</button>
+                </div>
             </div>
 
             <div class="form-actions">
                 <a href="{{ url_for('home') }}" class="cancel-button" style="text-decoration: none; display: inline-block; text-align: center;">Cancel</a>
-                <button type="submit">Process Batch Transactions</button>
+                <button type="submit" id="submit-batch-btn">Process Batch Transactions</button>
             </div>
         </form>
+        </div>
+
+        <!-- Batch Summary Sidebar -->
+        <div class="batch-summary">
+            <h3>📊 Batch Summary</h3>
+            
+            <div id="existing-batch-section" class="existing-batch-info" style="display: none;">
+                <h4>Existing Batch Found</h4>
+                <div id="existing-batch-details"></div>
+            </div>
+
+            <div class="summary-section">
+                <h4>Current Form Totals</h4>
+                <div class="summary-totals">
+                    <div class="summary-row">
+                        <span>Transactions:</span>
+                        <span id="current-count">0</span>
+                    </div>
+                    <div class="summary-row total">
+                        <span>Total Amount:</span>
+                        <span id="current-total">$0.00</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="summary-section">
+                <h4>Current Form by Payment Type</h4>
+                <div id="current-payment-types">
+                    <em style="color: #666;">No transactions entered</em>
+                </div>
+            </div>
+
+            <div class="summary-section" id="combined-section" style="display: none;">
+                <h4>Combined Totals (Existing + New)</h4>
+                <div class="summary-totals">
+                    <div class="summary-row">
+                        <span>Total Transactions:</span>
+                        <span id="combined-count">0</span>
+                    </div>
+                    <div class="summary-row total">
+                        <span>Total Amount:</span>
+                        <span id="combined-total">$0.00</span>
+                    </div>
+                </div>
+                <div id="combined-payment-types"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Dialog -->
+    <div id="confirmation-overlay" class="confirmation-overlay">
+        <div class="confirmation-dialog">
+            <h3>⚠️ Confirm Batch Processing</h3>
+            <div id="confirmation-summary"></div>
+            <div class="confirmation-buttons">
+                <button type="button" class="cancel-button" onclick="hideConfirmation()">Cancel</button>
+                <button type="button" class="confirm-button" onclick="confirmSubmission()">Yes, Process Transactions</button>
+            </div>
+        </div>
     </div>
 
     <script>
         let rowCounter = 0;
+        let existingBatchData = null;
+        let formHasBeenSubmitted = false;
 
         function addTransactionRow(donorId = '', amount = '', paymentType = '') {
             rowCounter++;
@@ -351,11 +620,12 @@
             row.id = `row_${rowCounter}`;
             
             row.innerHTML = `
+                <div class="transaction-number">${rowCounter}</div>
                 <div class="form-group">
                     <div class="donor-id-container">
                         <input type="number" name="donor_id_${rowCounter}" placeholder="Donor ID" 
                                value="${donorId}" min="1" step="1" class="donor-id-input"
-                               oninput="handleDonorIdInput(this, ${rowCounter})"
+                               oninput="handleDonorIdInput(this, ${rowCounter}); updateSummary()"
                                onmouseenter="showDonorTooltip(${rowCounter})"
                                onmouseleave="hideDonorTooltip(${rowCounter})">
                         <div class="donor-info-tooltip" id="tooltip_${rowCounter}"></div>
@@ -363,10 +633,10 @@
                 </div>
                 <div class="form-group">
                     <input type="number" name="trans_amount_${rowCounter}" placeholder="Amount" 
-                           value="${amount}" min="0" step="0.01">
+                           value="${amount}" min="0" step="0.01" oninput="updateSummary()">
                 </div>
                 <div class="form-group">
-                    <select name="payment_type_${rowCounter}" onchange="autoFillFromPaymentType(${rowCounter})">
+                    <select name="payment_type_${rowCounter}" onchange="autoFillFromPaymentType(${rowCounter}); updateSummary()">
                         <option value="">Select Payment Type</option>
                         <option value="N" ${paymentType === 'N' ? 'selected' : ''}>N - SUBS P.S. REPORT</option>
                         <option value="M" ${paymentType === 'M' ? 'selected' : ''}>M - PURCH MATERIALS ETF</option>
@@ -392,13 +662,41 @@
             if (paymentType) {
                 autoFillFromPaymentType(rowCounter);
             }
+
+            updateSummary();
+        }
+
+        function addMultipleRows() {
+            const numRows = parseInt(document.getElementById('rows-to-add').value) || 1;
+            for (let i = 0; i < numRows; i++) {
+                addTransactionRow();
+            }
+        }
+
+        function addMultipleRowsBottom() {
+            const numRows = parseInt(document.getElementById('rows-to-add-bottom').value) || 1;
+            for (let i = 0; i < numRows; i++) {
+                addTransactionRow();
+            }
         }
 
         function removeTransactionRow(rowNum) {
             const row = document.getElementById(`row_${rowNum}`);
             if (row) {
                 row.remove();
+                renumberRows();
+                updateSummary();
             }
+        }
+
+        function renumberRows() {
+            const rows = document.querySelectorAll('#transaction-rows .transaction-row');
+            rows.forEach((row, index) => {
+                const numberElement = row.querySelector('.transaction-number');
+                if (numberElement) {
+                    numberElement.textContent = index + 1;
+                }
+            });
         }
 
         function autoFillFromPaymentType(rowNum) {
@@ -412,7 +710,6 @@
             const paymentType = paymentTypeSelect.value;
             let description = '';
             
-            // Map payment types to descriptions
             switch(paymentType) {
                 case 'N':
                     description = 'SUBS P.S. REPORT';
@@ -439,17 +736,251 @@
                     description = '';
             }
             
-            // Set all the hidden fields
             appealCodeInput.value = paymentType;
             jobDescInput.value = description;
             listDescInput.value = description;
         }
 
-        // Initialize with 5 empty rows
+        function updateSummary() {
+            const transactions = getCurrentTransactions();
+            
+            // Update current totals
+            document.getElementById('current-count').textContent = transactions.length;
+            document.getElementById('current-total').textContent = formatCurrency(transactions.reduce((sum, t) => sum + t.amount, 0));
+            
+            // Update payment type breakdown
+            const paymentTypes = {};
+            transactions.forEach(t => {
+                if (t.paymentType) {
+                    if (!paymentTypes[t.paymentType]) {
+                        paymentTypes[t.paymentType] = { count: 0, amount: 0, description: t.description };
+                    }
+                    paymentTypes[t.paymentType].count++;
+                    paymentTypes[t.paymentType].amount += t.amount;
+                }
+            });
+            
+            updatePaymentTypeDisplay('current-payment-types', paymentTypes);
+            
+            // Update combined totals if existing batch data exists
+            if (existingBatchData) {
+                updateCombinedSummary(transactions, paymentTypes);
+            }
+        }
+
+        function getCurrentTransactions() {
+            const transactions = [];
+            const rows = document.querySelectorAll('#transaction-rows .transaction-row');
+            
+            rows.forEach((row, index) => {
+                const rowNum = index + 1;
+                const donorId = document.querySelector(`input[name="donor_id_${rowNum}"]`)?.value?.trim();
+                const amount = parseFloat(document.querySelector(`input[name="trans_amount_${rowNum}"]`)?.value) || 0;
+                const paymentType = document.querySelector(`select[name="payment_type_${rowNum}"]`)?.value;
+                const description = document.querySelector(`input[name="bluebook_job_description_${rowNum}"]`)?.value;
+                
+                if (donorId && amount > 0) {
+                    transactions.push({ donorId, amount, paymentType, description });
+                }
+            });
+            
+            return transactions;
+        }
+
+        function updatePaymentTypeDisplay(containerId, paymentTypes) {
+            const container = document.getElementById(containerId);
+            
+            if (Object.keys(paymentTypes).length === 0) {
+                container.innerHTML = '<em style="color: #666;">No transactions entered</em>';
+                return;
+            }
+            
+            let html = '';
+            Object.entries(paymentTypes).forEach(([type, data]) => {
+                html += `
+                    <div class="payment-type-summary">
+                        <div class="payment-type-header">${type} - ${data.description}</div>
+                        <div class="summary-row">
+                            <span>Count: ${data.count}</span>
+                            <span>${formatCurrency(data.amount)}</span>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+
+        function updateCombinedSummary(currentTransactions, currentPaymentTypes) {
+            const combinedSection = document.getElementById('combined-section');
+            combinedSection.style.display = 'block';
+            
+            const combinedCount = existingBatchData.totalCount + currentTransactions.length;
+            const combinedTotal = existingBatchData.totalAmount + currentTransactions.reduce((sum, t) => sum + t.amount, 0);
+            
+            document.getElementById('combined-count').textContent = combinedCount;
+            document.getElementById('combined-total').textContent = formatCurrency(combinedTotal);
+            
+            // Combine payment types
+            const combinedPaymentTypes = { ...existingBatchData.paymentTypes };
+            Object.entries(currentPaymentTypes).forEach(([type, data]) => {
+                if (combinedPaymentTypes[type]) {
+                    combinedPaymentTypes[type].count += data.count;
+                    combinedPaymentTypes[type].amount += data.amount;
+                } else {
+                    combinedPaymentTypes[type] = { ...data };
+                }
+            });
+            
+            updatePaymentTypeDisplay('combined-payment-types', combinedPaymentTypes);
+        }
+
+        function checkExistingBatch() {
+            const batchNum = document.getElementById('global_update_batch_num').value.trim();
+            if (!batchNum) {
+                hideExistingBatchInfo();
+                return;
+            }
+            
+            fetch(`/check_existing_batch/${encodeURIComponent(batchNum)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.exists) {
+                        showExistingBatchInfo(data);
+                        existingBatchData = data;
+                    } else {
+                        hideExistingBatchInfo();
+                        existingBatchData = null;
+                    }
+                    updateSummary();
+                })
+                .catch(error => {
+                    console.error('Error checking existing batch:', error);
+                    hideExistingBatchInfo();
+                    existingBatchData = null;
+                });
+        }
+
+        function showExistingBatchInfo(data) {
+            const section = document.getElementById('existing-batch-section');
+            const details = document.getElementById('existing-batch-details');
+            
+            details.innerHTML = `
+                <div class="summary-row">
+                    <span>Existing Transactions:</span>
+                    <span>${data.totalCount}</span>
+                </div>
+                <div class="summary-row">
+                    <span>Existing Total:</span>
+                    <span>${formatCurrency(data.totalAmount)}</span>
+                </div>
+            `;
+            
+            section.style.display = 'block';
+        }
+
+        function hideExistingBatchInfo() {
+            document.getElementById('existing-batch-section').style.display = 'none';
+            document.getElementById('combined-section').style.display = 'none';
+        }
+
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD'
+            }).format(amount);
+        }
+
+        function showConfirmation() {
+            const transactions = getCurrentTransactions();
+            if (transactions.length === 0) {
+                alert('Please fill in at least one transaction.');
+                return false;
+            }
+            
+            const overlay = document.getElementById('confirmation-overlay');
+            const summary = document.getElementById('confirmation-summary');
+            
+            let html = `
+                <p><strong>You are about to process ${transactions.length} transaction(s) with a total amount of ${formatCurrency(transactions.reduce((sum, t) => sum + t.amount, 0))}.</strong></p>
+                <h4>Batch Details:</h4>
+                <ul>
+                    <li><strong>Date:</strong> ${document.getElementById('global_trans_date').value}</li>
+                    <li><strong>Batch Number:</strong> ${document.getElementById('global_update_batch_num').value || 'Not specified'}</li>
+                    <li><strong>Payment Method:</strong> ${document.getElementById('global_payment_method').value || 'Not specified'}</li>
+                </ul>
+                <h4>Transaction Summary:</h4>
+                <div style="max-height: 300px; overflow-y: auto;">
+            `;
+            
+            transactions.forEach((t, index) => {
+                html += `<div style="padding: 5px; border-bottom: 1px solid #eee;">
+                    ${index + 1}. Donor ${t.donorId}: ${formatCurrency(t.amount)} (${t.paymentType || 'No type'})
+                </div>`;
+            });
+            
+            html += '</div><p style="margin-top: 15px;"><strong>Are you sure you want to process these transactions?</strong></p>';
+            
+            summary.innerHTML = html;
+            overlay.style.display = 'flex';
+            return false;
+        }
+
+        function hideConfirmation() {
+            document.getElementById('confirmation-overlay').style.display = 'none';
+        }
+
+        function confirmSubmission() {
+            formHasBeenSubmitted = true;
+            hideConfirmation();
+            document.getElementById('batch-form').submit();
+        }
+
+        // Initialize
         document.addEventListener('DOMContentLoaded', function() {
+            // Add initial rows
             for (let i = 0; i < 5; i++) {
                 addTransactionRow();
             }
+            
+            // Set up batch number checking
+            const batchInput = document.getElementById('global_update_batch_num');
+            if (batchInput) {
+                batchInput.addEventListener('blur', checkExistingBatch);
+                // Check existing batch on load if batch number is already filled
+                if (batchInput.value.trim()) {
+                    checkExistingBatch();
+                }
+            }
+            
+            // Override form submission
+            document.getElementById('batch-form').addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                if (formHasBeenSubmitted) {
+                    // Allow the actual submission
+                    formHasBeenSubmitted = false;
+                    return true;
+                }
+                
+                // Show confirmation dialog
+                const globalDate = document.getElementById('global_trans_date').value;
+                if (!globalDate) {
+                    alert('Transaction date is required.');
+                    return false;
+                }
+                
+                const invalidInputs = document.querySelectorAll('.donor-id-input.invalid');
+                if (invalidInputs.length > 0) {
+                    const proceed = confirm('Some donor IDs were not found. Do you want to proceed anyway?');
+                    if (!proceed) {
+                        return false;
+                    }
+                }
+                
+                showConfirmation();
+                return false;
+            });
         });
 
         // Store donor information cache
@@ -459,15 +990,12 @@
         function handleDonorIdInput(input, rowNum) {
             const donorId = input.value.trim();
             
-            // Clear previous timeout
             if (searchTimeout) {
                 clearTimeout(searchTimeout);
             }
             
-            // Reset input styling
             input.className = 'donor-id-input';
             
-            // Clear tooltip
             const tooltip = document.getElementById(`tooltip_${rowNum}`);
             tooltip.innerHTML = '';
             tooltip.classList.remove('show');
@@ -476,23 +1004,19 @@
                 return;
             }
             
-            // Set loading state
             input.classList.add('loading');
             
-            // Debounce the search
             searchTimeout = setTimeout(() => {
                 fetchDonorInfo(donorId, rowNum, input);
             }, 500);
         }
 
         function fetchDonorInfo(donorId, rowNum, input) {
-            // Check cache first
             if (donorCache[donorId]) {
                 updateDonorDisplay(donorCache[donorId], rowNum, input);
                 return;
             }
             
-            // Fetch from server
             fetch(`/get_donor_info/${donorId}`)
                 .then(response => response.json())
                 .then(data => {
@@ -541,42 +1065,6 @@
             const tooltip = document.getElementById(`tooltip_${rowNum}`);
             tooltip.classList.remove('show');
         }
-
-        // Form validation
-        document.getElementById('batch-form').addEventListener('submit', function(e) {
-            const globalDate = document.getElementById('global_trans_date').value;
-            if (!globalDate) {
-                alert('Transaction date is required.');
-                e.preventDefault();
-                return;
-            }
-
-            // Check if at least one row has data
-            let hasData = false;
-            const inputs = document.querySelectorAll('input[name^="donor_id_"], input[name^="trans_amount_"]');
-            for (let input of inputs) {
-                if (input.value.trim()) {
-                    hasData = true;
-                    break;
-                }
-            }
-
-            if (!hasData) {
-                alert('Please fill in at least one transaction.');
-                e.preventDefault();
-                return;
-            }
-
-            // Check for invalid donor IDs
-            const invalidInputs = document.querySelectorAll('.donor-id-input.invalid');
-            if (invalidInputs.length > 0) {
-                const proceed = confirm('Some donor IDs were not found. Do you want to proceed anyway?');
-                if (!proceed) {
-                    e.preventDefault();
-                    return;
-                }
-            }
-        });
     </script>
 </body>
 </html> 

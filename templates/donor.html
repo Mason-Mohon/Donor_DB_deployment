@@ -206,6 +206,24 @@
             color: white;
             text-decoration: none;
         }
+        .back-to-search-prominent {
+            display: inline-block;
+            margin: 10px 0 20px 0;
+            background: #007bff;
+            color: white;
+            text-decoration: none;
+            padding: 12px 20px;
+            border-radius: 5px;
+            font-weight: bold;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .back-to-search-prominent:hover {
+            background: #0056b3;
+            color: white;
+            text-decoration: none;
+        }
         @media (max-width: 768px) {
             .main-content {
                 grid-template-columns: 1fr;
@@ -217,8 +235,9 @@
     </style>
 </head>
 <body>
-    <div class="profile-header">
-        <h1>Donor Profile: {{ donor.formatted_full_name or (donor.first_name + ' ' + donor.last_name) or 'Donor #' + donor.base_donor_id|string }}</h1>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h1 style="margin: 0;">Donor Profile: {{ donor.formatted_full_name or (donor.first_name + ' ' + donor.last_name) or 'Donor #' + donor.base_donor_id|string }}</h1>
+        <a href="{{ url_for('home') }}" class="back-to-search-prominent">&larr; Back to Search</a>
     </div>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -471,7 +490,5 @@
             </div>
         {% endif %}
     </div>
-
-    <a href="{{ url_for('home') }}" class="back-link">&larr; Back to Search</a>
 </body>
 </html>
