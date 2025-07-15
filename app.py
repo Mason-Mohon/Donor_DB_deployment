@@ -487,6 +487,7 @@ def extract_donor_data(form):
         'city': form.get("city", "").strip() or None,
         'state': form.get("state", "").strip().upper() or None,
         'zip_plus4': form.get("zip_plus4", "").strip() or None,
+        'country': form.get("country", "").strip() or None,
         'phone': form.get("phone", "").strip() or None,
         'work_phone': form.get("work_phone", "").strip() or None,
         'cell_phone': form.get("cell_phone", "").strip() or None,
@@ -588,8 +589,10 @@ def add_donor():
         # GET request - auto-fill base_donor_id with max + 1
         session = Session()
         try:
-            # Get the maximum base_donor_id from the database
-            max_donor_id = session.query(EagleTrustFundDonor.base_donor_id).order_by(EagleTrustFundDonor.base_donor_id.desc()).first()
+            # Get the maximum base_donor_id from the database (excluding anonymous donor ID 999,999,999)
+            max_donor_id = session.query(EagleTrustFundDonor.base_donor_id)\
+                .filter(EagleTrustFundDonor.base_donor_id != 999999999)\
+                .order_by(EagleTrustFundDonor.base_donor_id.desc()).first()
             next_donor_id = (max_donor_id[0] + 1) if max_donor_id and max_donor_id[0] else 1
             
             return render_template("add_donor.html", donor={'base_donor_id': next_donor_id})
@@ -737,8 +740,10 @@ def add_transaction(donor_id):
 def donor_quick_add():
     session = Session()
     try:
-        # Get the starting donor ID (max + 1) for both GET and POST
-        max_donor_id = session.query(EagleTrustFundDonor.base_donor_id).order_by(EagleTrustFundDonor.base_donor_id.desc()).first()
+        # Get the starting donor ID (max + 1) for both GET and POST (excluding anonymous donor ID 999,999,999)
+        max_donor_id = session.query(EagleTrustFundDonor.base_donor_id)\
+            .filter(EagleTrustFundDonor.base_donor_id != 999999999)\
+            .order_by(EagleTrustFundDonor.base_donor_id.desc()).first()
         next_donor_id = (max_donor_id[0] + 1) if max_donor_id and max_donor_id[0] else 1
         
         if request.method == "POST":
@@ -1947,7 +1952,7 @@ def mailing_list_generator():
             # Build the complex query with multiple criteria
             query_conditions = []
             
-            # Criteria 1: Donors with transactions between start_date and now with newsletter status A
+            # Criteria 1: Donors with transactions between start_date and now with newsletter status A and payment type E
             subquery1 = session.query(EagleTrustFundDonor.base_donor_id).join(
                 EagleTrustFundTransaction,
                 EagleTrustFundDonor.base_donor_id == EagleTrustFundTransaction.base_donor_id
@@ -1959,18 +1964,18 @@ def mailing_list_generator():
                 )
             ).distinct()
             
-            # Criteria 2: Donors with largest transaction over $100 within [start_date - 3 years] to start_date with newsletter status A
-            criteria2 = and_(
-                EagleTrustFundDonor.newsletter_status == 'A',
-                EagleTrustFundDonor.largest_amount > 100,
-                or_(
-                    EagleTrustFundDonor.largest_date.is_(None),
-                    and_(
-                        EagleTrustFundDonor.largest_date >= three_years_before.strftime('%Y-%m-%d'),
-                        EagleTrustFundDonor.largest_date <= start_date.strftime('%Y-%m-%d')
-                    )
+            # Criteria 2: Donors with any transaction >= $100 within [start_date - 3 years] to start_date with newsletter status A and payment type E
+            subquery2 = session.query(EagleTrustFundDonor.base_donor_id).join(
+                EagleTrustFundTransaction,
+                EagleTrustFundDonor.base_donor_id == EagleTrustFundTransaction.base_donor_id
+            ).filter(
+                and_(
+                    EagleTrustFundTransaction.trans_date >= three_years_before,
+                    EagleTrustFundTransaction.trans_date <= start_date,
+                    EagleTrustFundTransaction.trans_amount >= 100,
+                    EagleTrustFundDonor.newsletter_status == 'A'
                 )
-            )
+            ).distinct()
             
             # Criteria 3: Donors with newsletter status A and donor status L
             criteria3 = and_(
@@ -1984,13 +1989,16 @@ def mailing_list_generator():
             # Combine all criteria with OR
             inclusion_criteria = or_(
                 EagleTrustFundDonor.base_donor_id.in_(subquery1),
-                criteria2,
+                EagleTrustFundDonor.base_donor_id.in_(subquery2),
                 criteria3,
                 criteria4
             )
             
-            # Exclusion criteria: OMIT donors with newsletter status M, N, or D
-            exclusion_criteria = not_(EagleTrustFundDonor.newsletter_status.in_(['M', 'N', 'D']))
+            # Exclusion criteria: OMIT donors with newsletter status M, N, or D, and donor status N
+            exclusion_criteria = and_(
+                not_(EagleTrustFundDonor.newsletter_status.in_(['M', 'N', 'D'])),
+                not_(EagleTrustFundDonor.donor_status == 'N')
+            )
             
             # Build final query
             final_query = session.query(EagleTrustFundDonor).filter(
@@ -2009,6 +2017,7 @@ def mailing_list_generator():
             # Prepare CSV data
             headers = [
                 'Full Name',
+                'Donor ID',
                 'Salutation', 
                 'Company/Address Line 1',
                 'Address Line 2',
@@ -2036,6 +2045,7 @@ def mailing_list_generator():
                 
                 data.append([
                     full_name,
+                    donor.base_donor_id,
                     donor.salutation_dear or '',
                     donor.address_1_company or '',
                     donor.address_2_secondary or '',

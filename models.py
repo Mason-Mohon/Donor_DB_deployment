@@ -26,6 +26,7 @@ class EagleTrustFundDonor(Base):
     city                        = Column(String)
     state                       = Column(String)
     zip_plus4                   = Column(String)
+    country                     = Column(String)
     phone                       = Column(String)
     work_phone                  = Column(String)
     cell_phone                  = Column(String)

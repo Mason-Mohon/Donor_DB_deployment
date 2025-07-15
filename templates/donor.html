@@ -370,6 +370,12 @@
                     </div>
                 </div>
             {% endif %}
+            {% if donor.country %}
+                <div class="field-group">
+                    <span class="field-label">Country:</span>
+                    <span class="field-value">{{ donor.country }}</span>
+                </div>
+            {% endif %}
             {% if donor.email_address %}
                 <div class="field-group">
                     <span class="field-label">Email:</span>

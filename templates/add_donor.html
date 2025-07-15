@@ -66,6 +66,10 @@
                         <small>Auto-filled with next available ID. You can change this if needed.</small>
                     </div>
                     <div class="form-group">
+                        <label for="name_prefix">Prefix</label>
+                        <input type="text" id="name_prefix" name="name_prefix" value="{{ donor.name_prefix or '' }}">
+                    </div>
+                    <div class="form-group">
                         <label for="first_name">First Name</label>
                         <input type="text" id="first_name" name="first_name" value="{{ donor.first_name or '' }}">
                     </div>
@@ -74,16 +78,8 @@
                         <input type="text" id="last_name" name="last_name" value="{{ donor.last_name or '' }}" required>
                     </div>
                     <div class="form-group">
-                        <label for="name_prefix">Prefix</label>
-                        <input type="text" id="name_prefix" name="name_prefix" value="{{ donor.name_prefix or '' }}">
-                    </div>
-                    <div class="form-group">
                         <label for="suffix">Suffix</label>
                         <input type="text" id="suffix" name="suffix" value="{{ donor.suffix or '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label for="formatted_full_name">Formatted Full Name (if different)</label>
-                        <input type="text" id="formatted_full_name" name="formatted_full_name" value="{{ donor.formatted_full_name or '' }}">
                     </div>
                      <div class="form-group">
                         <label for="alternate_id">Alternate ID</label>
@@ -122,22 +118,6 @@
                 <h2>Contact Information</h2>
                 <div class="form-grid">
                     <div class="form-group">
-                        <label for="email_address">Email Address</label>
-                        <input type="email" id="email_address" name="email_address" value="{{ donor.email_address or '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label for="phone">Primary Phone</label>
-                        <input type="tel" id="phone" name="phone" value="{{ donor.phone or '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label for="work_phone">Work Phone</label>
-                        <input type="tel" id="work_phone" name="work_phone" value="{{ donor.work_phone or '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label for="cell_phone">Cell Phone</label>
-                        <input type="tel" id="cell_phone" name="cell_phone" value="{{ donor.cell_phone or '' }}">
-                    </div>
-                    <div class="form-group">
                         <label for="address_1_company">Company Name / Address Line 1</label>
                         <input type="text" id="address_1_company" name="address_1_company" value="{{ donor.address_1_company or '' }}">
                     </div>
@@ -160,6 +140,26 @@
                     <div class="form-group">
                         <label for="zip_plus4">ZIP Code (+4 optional)</label>
                         <input type="text" id="zip_plus4" name="zip_plus4" value="{{ donor.zip_plus4 or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="country">Country</label>
+                        <input type="text" id="country" name="country" value="{{ donor.country or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="email_address">Email Address</label>
+                        <input type="email" id="email_address" name="email_address" value="{{ donor.email_address or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="phone">Primary Phone</label>
+                        <input type="tel" id="phone" name="phone" value="{{ donor.phone or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="work_phone">Work Phone</label>
+                        <input type="tel" id="work_phone" name="work_phone" value="{{ donor.work_phone or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="cell_phone">Cell Phone</label>
+                        <input type="tel" id="cell_phone" name="cell_phone" value="{{ donor.cell_phone or '' }}">
                     </div>
                      <div class="form-group">
                         <label for="twitter">Twitter Handle</label>
@@ -185,14 +185,6 @@
             <div class="form-section">
                 <h2>Personal & Status Information</h2>
                  <div class="form-grid">
-                    <div class="form-group">
-                        <label for="birth_date">Birth Date</label>
-                        <input type="date" id="birth_date" name="birth_date" value="{{ donor.birth_date or '' }}">
-                    </div>
-                     <div class="form-group">
-                        <label for="gender_code">Gender Code</label>
-                        <input type="text" id="gender_code" name="gender_code" value="{{ donor.gender_code or '' }}" maxlength="1">
-                    </div>
                     <div class="form-group">
                         <label for="date_added_to_database">Date Added to Database (YYYY-MM-DD)</label>
                         <input type="date" id="date_added_to_database" name="date_added_to_database" value="{{ donor.date_added_to_database or '' }}">
