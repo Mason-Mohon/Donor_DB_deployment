@@ -433,6 +433,39 @@
                 </div>
             </div>
             
+            <h2 style="margin-top: 25px;">Mailing List</h2>
+            <div class="field-group">
+                <span class="field-label">Mailing List Status:</span>
+                <span class="field-value" id="mailing-status-display">
+                    <span class="status-badge" id="mailing-status-badge">
+                        <span id="mailing-status-text">{% if donor.mailing_list_status %}✓ Active{% else %}✗ Inactive{% endif %}</span>
+                    </span>
+                    <button type="button" class="quick-edit-btn" onclick="editMailingList()">✏️ Edit</button>
+                </span>
+                <div id="mailing-edit" style="display: none; margin-top: 10px;">
+                    <div style="margin-bottom: 10px;">
+                        <label style="width: auto; margin-right: 15px; cursor: pointer;">
+                            <input type="checkbox" id="mailing-status-input" style="margin-right: 5px;" {% if donor.mailing_list_status %}checked{% endif %}>
+                            Include in mailing list
+                        </label>
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <label style="width: auto; margin-right: 10px;">Until date (optional):</label>
+                        <input type="date" id="mailing-until-input" value="{{ donor.mailing_until_date or '' }}" style="padding: 4px 8px; border: 1px solid #ccc; border-radius: 3px;">
+                    </div>
+                    <div>
+                        <button type="button" class="save-btn" onclick="saveMailingList()">Save</button>
+                        <button type="button" class="cancel-btn" onclick="cancelEditMailingList()">Cancel</button>
+                    </div>
+                </div>
+            </div>
+            <div class="field-group">
+                <span class="field-label">Mailing Until Date:</span>
+                <span class="field-value" id="mailing-until-display">
+                    <span id="mailing-until-text">{{ donor.mailing_until_date or 'Not set' }}</span>
+                </span>
+            </div>
+            
             <h2 style="margin-top: 25px;">Gift Subscriptions</h2>
             {% if gifted_by %}
                 <div class="field-group">
@@ -587,6 +620,12 @@
         {% endif %}
     </div>
 
+    <!-- Hidden data for JavaScript -->
+    <div id="donor-data" 
+         data-mailing-status="{{ donor.mailing_list_status|lower }}"
+         data-mailing-until-date="{{ donor.mailing_until_date or '' }}" 
+         style="display: none;"></div>
+    
     <script>
         // Quick edit expiration date
         function editExpiration() {
@@ -770,6 +809,67 @@
             }
         });
 
+        // Mailing list editing functionality
+        function editMailingList() {
+            document.getElementById('mailing-status-display').style.display = 'none';
+            document.getElementById('mailing-edit').style.display = 'block';
+        }
+
+        function cancelEditMailingList() {
+            document.getElementById('mailing-status-display').style.display = 'block';
+            document.getElementById('mailing-edit').style.display = 'none';
+            // Reset to original values
+            const donorData = document.getElementById('donor-data');
+            document.getElementById('mailing-status-input').checked = donorData.dataset.mailingStatus === 'true';
+            document.getElementById('mailing-until-input').value = donorData.dataset.mailingUntilDate;
+        }
+
+        function saveMailingList() {
+            const mailingStatus = document.getElementById('mailing-status-input').checked;
+            const mailingUntilDate = document.getElementById('mailing-until-input').value;
+            
+            fetch(`/quick_edit_mailing_list/{{ donor.base_donor_id }}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    mailing_list_status: mailingStatus,
+                    mailing_until_date: mailingUntilDate
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Update the status badge
+                    const statusBadge = document.getElementById('mailing-status-badge');
+                    const statusText = document.getElementById('mailing-status-text');
+                    const untilText = document.getElementById('mailing-until-text');
+                    
+                    if (data.mailing_list_status) {
+                        statusBadge.style.background = '#28a745';
+                        statusBadge.style.color = 'white';
+                        statusText.textContent = '✓ Active';
+                    } else {
+                        statusBadge.style.background = '#dc3545';
+                        statusBadge.style.color = 'white';
+                        statusText.textContent = '✗ Inactive';
+                    }
+                    
+                    untilText.textContent = data.mailing_until_date || 'Not set';
+                    
+                    cancelEditMailingList();
+                    showMessage('Mailing list settings updated successfully!', 'success');
+                } else {
+                    showMessage('Error: ' + data.error, 'error');
+                }
+            })
+            .catch(error => {
+                showMessage('Error updating mailing list settings', 'error');
+                console.error('Error:', error);
+            });
+        }
+
         // Message display function
         function showMessage(message, type) {
             // Create a message element
@@ -791,6 +891,21 @@
                 }
             }, 3000);
         }
+
+        // Initialize mailing list status badge styling on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const statusBadge = document.getElementById('mailing-status-badge');
+            const donorData = document.getElementById('donor-data');
+            const mailingStatus = donorData.dataset.mailingStatus === 'true';
+            
+            if (mailingStatus) {
+                statusBadge.style.background = '#28a745';
+                statusBadge.style.color = 'white';
+            } else {
+                statusBadge.style.background = '#dc3545';
+                statusBadge.style.color = 'white';
+            }
+        });
     </script>
 </body>
 </html>

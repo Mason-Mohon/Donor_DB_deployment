@@ -1043,8 +1043,11 @@ def batch_transactions():
             # Commit all changes
             session.commit()
             
-            flash(f"Successfully processed {len(transactions_to_add)} transactions for {len(donors_to_update)} donors!", "success")
-            return redirect(url_for("batch_transactions"))
+            # Redirect to batch success page with batch information
+            return redirect(url_for("batch_success", 
+                                  batch_num=update_batch_num or 'NOBATCH',
+                                  num_transactions=len(transactions_to_add),
+                                  total_amount=float(sum(t.trans_amount for t in transactions_to_add))))
             
         except Exception as e:
             session.rollback()
@@ -1071,6 +1074,93 @@ def batch_transactions():
     
     # GET request - show empty form
     return render_template("batch_transactions.html", form_data={})
+
+@app.route("/batch_success")
+def batch_success():
+    """Show batch processing success page with PDF download and mailing list options"""
+    batch_num = request.args.get('batch_num', '')
+    num_transactions = request.args.get('num_transactions', 0, type=int)
+    total_amount = request.args.get('total_amount', 0.0, type=float)
+    
+    if batch_num == 'NOBATCH':
+        batch_num = None
+    
+    session = Session()
+    try:
+        # Get all donor IDs from the batch that have mailing_list_status = FALSE
+        if batch_num:
+            # Find transactions in this batch
+            batch_transactions = session.query(EagleTrustFundTransaction).filter_by(
+                update_batch_num=batch_num
+            ).all()
+            
+            # Get unique donor IDs from this batch
+            donor_ids_in_batch = list(set([t.base_donor_id for t in batch_transactions]))
+        else:
+            # If no batch number, we can't identify specific donors
+            donor_ids_in_batch = []
+        
+        # Find donors from this batch who have mailing_list_status = FALSE
+        mailing_list_candidates = []
+        if donor_ids_in_batch:
+            mailing_list_candidates = session.query(EagleTrustFundDonor).filter(
+                and_(
+                    EagleTrustFundDonor.base_donor_id.in_(donor_ids_in_batch),
+                    EagleTrustFundDonor.mailing_list_status == False
+                )
+            ).order_by(EagleTrustFundDonor.last_name, EagleTrustFundDonor.first_name).all()
+        
+        return render_template("batch_success.html",
+                             batch_num=batch_num,
+                             num_transactions=num_transactions,
+                             total_amount=total_amount,
+                             mailing_list_candidates=mailing_list_candidates)
+    finally:
+        session.close()
+
+@app.route("/update_batch_mailing_list", methods=["POST"])
+def update_batch_mailing_list():
+    """Update mailing list status for selected donors from batch"""
+    session = Session()
+    try:
+        # Get selected donor IDs from the form
+        selected_donor_ids = request.form.getlist('donor_ids')
+        
+        if not selected_donor_ids:
+            flash("No donors selected.", "warning")
+            return redirect(request.referrer or url_for('home'))
+        
+        # Convert to integers
+        try:
+            selected_donor_ids = [int(did) for did in selected_donor_ids]
+        except ValueError:
+            flash("Invalid donor IDs provided.", "error")
+            return redirect(request.referrer or url_for('home'))
+        
+        # Update mailing list status for selected donors
+        updated_count = session.query(EagleTrustFundDonor).filter(
+            EagleTrustFundDonor.base_donor_id.in_(selected_donor_ids)
+        ).update(
+            {EagleTrustFundDonor.mailing_list_status: True},
+            synchronize_session='fetch'
+        )
+        
+        session.commit()
+        
+        if updated_count > 0:
+            flash(f"Successfully added {updated_count} donor(s) to the mailing list!", "success")
+        else:
+            flash("No donors were updated.", "warning")
+            
+        return redirect(request.referrer or url_for('home'))
+        
+    except Exception as e:
+        session.rollback()
+        app.logger.error(f"Error updating mailing list status: {e}")
+        flash(f"Error updating mailing list status: {e}", "error")
+        return redirect(request.referrer or url_for('home'))
+    finally:
+        session.close()
 
 @app.route("/transactions", methods=["GET", "POST"])
 def transaction_search():
@@ -1923,13 +2013,14 @@ def check_existing_batch(batch_num):
         session.close()
 
 @app.route("/mailing_list_generator", methods=["GET", "POST"])
-def mailing_list_generator():
+def mailing_list_candidates():
     if request.method == "POST":
         session = Session()
         try:
             # Get form parameters
             query_title = request.form.get('query_title', '').strip()
             start_date_str = request.form.get('start_date', '').strip()
+            end_date_str = request.form.get('end_date', '').strip()
             
             if not query_title:
                 flash("Query title is required.", "error")
@@ -1939,80 +2030,256 @@ def mailing_list_generator():
                 flash("Start date is required.", "error")
                 return render_template("mailing_list_generator.html")
             
+            # Parse dates with enhanced error handling
             try:
                 start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
-                current_date = datetime.now().date()
-                three_years_before = start_date - timedelta(days=3*365)
+                if end_date_str:
+                    end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+                else:
+                    end_date = datetime.now().date()
+                three_years_before = datetime.strptime('2016-12-31', '%Y-%m-%d').date()
             except ValueError:
                 flash("Invalid date format. Please use YYYY-MM-DD.", "error")
                 return render_template("mailing_list_generator.html")
             
-            app.logger.info(f"Generating mailing list '{query_title}' for date range {start_date} to {current_date}")
+            app.logger.info(f"Generating mailing list candidates '{query_title}' for date range {start_date} to {end_date}")
             
-            # Build the complex query with multiple criteria
-            query_conditions = []
+            # Initialize tracking variables
+            all_donor_ids = set()
+            error_log = {
+                'date_parsing_errors': [],
+                'missing_transactions': [],
+                'house_pub_format_issues': [],
+                'data_inconsistencies': []
+            }
+            query_stats = {}
             
-            # Criteria 1: Donors with transactions between start_date and now with newsletter status A and payment type E
-            subquery1 = session.query(EagleTrustFundDonor.base_donor_id).join(
-                EagleTrustFundTransaction,
-                EagleTrustFundDonor.base_donor_id == EagleTrustFundTransaction.base_donor_id
-            ).filter(
-                and_(
-                    EagleTrustFundTransaction.trans_date >= start_date,
-                    EagleTrustFundTransaction.trans_date <= current_date,
-                    EagleTrustFundDonor.newsletter_status == 'A'
-                )
-            ).distinct()
+            # QUERY 1: Recent transactions with A/E newsletter status
+            app.logger.info("Running Query 1: Recent transactions with A/E newsletter status...")
+            try:
+                query1_results = session.query(EagleTrustFundDonor.base_donor_id).join(
+                    EagleTrustFundTransaction,
+                    EagleTrustFundDonor.base_donor_id == EagleTrustFundTransaction.base_donor_id
+                ).filter(
+                    and_(
+                        EagleTrustFundTransaction.trans_date >= start_date,
+                        EagleTrustFundTransaction.trans_date <= end_date,
+                        EagleTrustFundDonor.newsletter_status.in_(['A', 'E']),
+                        # Enhanced NULL handling for donor_status
+                        or_(
+                            EagleTrustFundDonor.donor_status.is_(None),
+                            EagleTrustFundDonor.donor_status == '',
+                            not_(EagleTrustFundDonor.donor_status.in_(['M', 'N']))
+                        )
+                    )
+                ).distinct().all()
+                
+                query1_ids = {row[0] for row in query1_results}
+                all_donor_ids.update(query1_ids)
+                query_stats['query1'] = len(query1_ids)
+                app.logger.info(f"Query 1 found: {len(query1_ids)} donors")
+                
+            except Exception as e:
+                app.logger.error(f"Error in Query 1: {e}")
+                error_log['data_inconsistencies'].append(f"Query 1 error: {e}")
+                query1_ids = set()
+                query_stats['query1'] = 0
             
-            # Criteria 2: Donors with any transaction >= $100 within [start_date - 3 years] to start_date with newsletter status A and payment type E
-            subquery2 = session.query(EagleTrustFundDonor.base_donor_id).join(
-                EagleTrustFundTransaction,
-                EagleTrustFundDonor.base_donor_id == EagleTrustFundTransaction.base_donor_id
-            ).filter(
-                and_(
-                    EagleTrustFundTransaction.trans_date >= three_years_before,
-                    EagleTrustFundTransaction.trans_date <= start_date,
-                    EagleTrustFundTransaction.trans_amount >= 100,
-                    EagleTrustFundDonor.newsletter_status == 'A'
-                )
-            ).distinct()
+            # QUERY 2: Historical $100+ transactions with enhanced error handling
+            app.logger.info("Running Query 2: Historical $100+ transactions...")
+            try:
+                # First, get all donors with historical $100+ transactions
+                historical_big_donors = session.query(EagleTrustFundDonor.base_donor_id).join(
+                    EagleTrustFundTransaction,
+                    EagleTrustFundDonor.base_donor_id == EagleTrustFundTransaction.base_donor_id
+                ).filter(
+                    and_(
+                        EagleTrustFundTransaction.trans_date >= three_years_before,
+                        EagleTrustFundTransaction.trans_date <= start_date,
+                        EagleTrustFundTransaction.trans_amount >= 100,
+                        EagleTrustFundDonor.newsletter_status == 'A',
+                        # Enhanced NULL handling for donor_status
+                        or_(
+                            EagleTrustFundDonor.donor_status.is_(None),
+                            EagleTrustFundDonor.donor_status == '',
+                            EagleTrustFundDonor.donor_status != 'N'
+                        )
+                    )
+                ).distinct().all()
+                
+                historical_big_donor_ids = {row[0] for row in historical_big_donors}
+                
+                # Enhanced exclusion logic with better date handling
+                exclusion_start = '2017-01-02'
+                exclusion_end = '2019-12-31'
+                recent_donors_to_exclude = set()
+                
+                # Method 1: Direct string comparison (handles most cases)
+                try:
+                    exclude_query1 = session.query(EagleTrustFundDonor.base_donor_id).filter(
+                        and_(
+                            EagleTrustFundDonor.latest_date.isnot(None),
+                            EagleTrustFundDonor.latest_date != '',
+                            EagleTrustFundDonor.latest_date >= exclusion_start,
+                            EagleTrustFundDonor.latest_date <= exclusion_end
+                        )
+                    ).all()
+                    recent_donors_to_exclude.update({row[0] for row in exclude_query1})
+                except Exception as e:
+                    error_log['date_parsing_errors'].append(f"Date comparison method 1 failed: {e}")
+                
+                # Method 2: Use actual transaction records as backup
+                try:
+                    from sqlalchemy import text
+                    exclude_query2 = session.query(EagleTrustFundTransaction.base_donor_id).filter(
+                        and_(
+                            EagleTrustFundTransaction.trans_date >= datetime.strptime(exclusion_start, '%Y-%m-%d').date(),
+                            EagleTrustFundTransaction.trans_date <= datetime.strptime(exclusion_end, '%Y-%m-%d').date()
+                        )
+                    ).group_by(EagleTrustFundTransaction.base_donor_id).having(
+                        text('MAX(trans_date) >= :start AND MAX(trans_date) <= :end')
+                    ).params(start=exclusion_start, end=exclusion_end).all()
+                    recent_donors_to_exclude.update({row[0] for row in exclude_query2})
+                except Exception as e:
+                    error_log['date_parsing_errors'].append(f"Transaction-based exclusion failed: {e}")
+                
+                # Apply exclusion
+                query2_ids = historical_big_donor_ids - recent_donors_to_exclude
+                all_donor_ids.update(query2_ids)
+                query_stats['query2'] = len(query2_ids)
+                app.logger.info(f"Query 2 found: {len(query2_ids)} donors (after exclusions)")
+                
+            except Exception as e:
+                app.logger.error(f"Error in Query 2: {e}")
+                error_log['data_inconsistencies'].append(f"Query 2 error: {e}")
+                query2_ids = set()
+                query_stats['query2'] = 0
             
-            # Criteria 3: Donors with newsletter status A and donor status L
-            criteria3 = and_(
-                EagleTrustFundDonor.newsletter_status == 'A',
-                EagleTrustFundDonor.donor_status == 'L'
-            )
+            # QUERY 3: Enhanced house publications matching for lifetime donors
+            app.logger.info("Running Query 3: Lifetime donors with PS publications...")
+            try:
+                query3_results = session.query(EagleTrustFundDonor.base_donor_id).filter(
+                    and_(
+                        EagleTrustFundDonor.newsletter_status == 'A',
+                        EagleTrustFundDonor.donor_status == 'L',
+                        or_(
+                            # Exact match
+                            EagleTrustFundDonor.house_publications == 'PS',
+                            # Contains PS with various formats
+                            EagleTrustFundDonor.house_publications.like('%PS %'),
+                            EagleTrustFundDonor.house_publications.like('PS -%'),
+                            EagleTrustFundDonor.house_publications.like('%PS - THE PHYLLIS SCHLAFLY REPORT%'),
+                            # Handle edge cases
+                            EagleTrustFundDonor.house_publications.like('%, PS -%'),
+                            EagleTrustFundDonor.house_publications.like('%PS(%')
+                        )
+                    )
+                ).all()
+                
+                query3_ids = {row[0] for row in query3_results}
+                all_donor_ids.update(query3_ids)
+                query_stats['query3'] = len(query3_ids)
+                app.logger.info(f"Query 3 found: {len(query3_ids)} donors")
+                
+            except Exception as e:
+                app.logger.error(f"Error in Query 3: {e}")
+                error_log['house_pub_format_issues'].append(f"Query 3 error: {e}")
+                query3_ids = set()
+                query_stats['query3'] = 0
             
-            # Criteria 4: Donors with newsletter status E (from all time)
-            criteria4 = EagleTrustFundDonor.newsletter_status == 'E'
+            # QUERY 4: Enhanced house publications matching for exempt donors
+            app.logger.info("Running Query 4: Exempt donors with PS publications...")
+            try:
+                query4_results = session.query(EagleTrustFundDonor.base_donor_id).filter(
+                    and_(
+                        EagleTrustFundDonor.newsletter_status == 'E',
+                        or_(
+                            # Exact match
+                            EagleTrustFundDonor.house_publications == 'PS',
+                            # Contains PS with various formats
+                            EagleTrustFundDonor.house_publications.like('%PS %'),
+                            EagleTrustFundDonor.house_publications.like('PS -%'),
+                            EagleTrustFundDonor.house_publications.like('%PS - THE PHYLLIS SCHLAFLY REPORT%'),
+                            # Handle edge cases
+                            EagleTrustFundDonor.house_publications.like('%, PS -%'),
+                            EagleTrustFundDonor.house_publications.like('%PS(%')
+                        )
+                    )
+                ).all()
+                
+                query4_ids = {row[0] for row in query4_results}
+                all_donor_ids.update(query4_ids)
+                query_stats['query4'] = len(query4_ids)
+                app.logger.info(f"Query 4 found: {len(query4_ids)} donors")
+                
+            except Exception as e:
+                app.logger.error(f"Error in Query 4: {e}")
+                error_log['house_pub_format_issues'].append(f"Query 4 error: {e}")
+                query4_ids = set()
+                query_stats['query4'] = 0
             
-            # Combine all criteria with OR
-            inclusion_criteria = or_(
-                EagleTrustFundDonor.base_donor_id.in_(subquery1),
-                EagleTrustFundDonor.base_donor_id.in_(subquery2),
-                criteria3,
-                criteria4
-            )
+            app.logger.info(f"Total unique donors found: {len(all_donor_ids)}")
             
-            # Exclusion criteria: OMIT donors with newsletter status M, N, or D, and donor status N
-            exclusion_criteria = and_(
-                not_(EagleTrustFundDonor.newsletter_status.in_(['M', 'N', 'D'])),
-                not_(EagleTrustFundDonor.donor_status == 'N')
-            )
+            # Data consistency validation (sample check)
+            consistency_issues = 0
+            sample_donors = list(all_donor_ids)[:50] if len(all_donor_ids) > 50 else list(all_donor_ids)
             
-            # Build final query
-            final_query = session.query(EagleTrustFundDonor).filter(
-                and_(inclusion_criteria, exclusion_criteria)
-            ).order_by(EagleTrustFundDonor.last_name, EagleTrustFundDonor.first_name)
+            for donor_id in sample_donors:
+                try:
+                    donor = session.query(EagleTrustFundDonor).filter(
+                        EagleTrustFundDonor.base_donor_id == donor_id
+                    ).first()
+                    
+                    if donor and donor.latest_date:
+                        try:
+                            latest_date_parsed = datetime.strptime(str(donor.latest_date), '%Y-%m-%d').date()
+                            if latest_date_parsed >= start_date:
+                                transaction_count = session.query(EagleTrustFundTransaction).filter(
+                                    and_(
+                                        EagleTrustFundTransaction.base_donor_id == donor_id,
+                                        EagleTrustFundTransaction.trans_date >= start_date
+                                    )
+                                ).count()
+                                
+                                if transaction_count == 0:
+                                    consistency_issues += 1
+                                    error_log['data_inconsistencies'].append(
+                                        f"Donor {donor_id}: latest_date {donor.latest_date} but no recent transactions"
+                                    )
+                        except ValueError as e:
+                            error_log['date_parsing_errors'].append(f"Donor {donor_id}: Invalid date format {donor.latest_date}")
+                            
+                except Exception as e:
+                    error_log['data_inconsistencies'].append(f"Validation error for donor {donor_id}: {e}")
             
-            # Execute query
-            donors = final_query.all()
+            if consistency_issues > 0:
+                app.logger.warning(f"Found {consistency_issues} potential data consistency issues in sample")
             
-            app.logger.info(f"Found {len(donors)} donors matching mailing list criteria")
-            
-            if not donors:
+            # Get final donor records
+            if not all_donor_ids:
                 flash("No donors found matching the specified criteria.", "warning")
                 return render_template("mailing_list_generator.html")
+            
+            # Filter for candidates only (mailing_list_status = FALSE)
+            final_donors = session.query(EagleTrustFundDonor).filter(
+                and_(
+                    EagleTrustFundDonor.base_donor_id.in_(all_donor_ids),
+                    EagleTrustFundDonor.mailing_list_status == False
+                )
+            ).order_by(EagleTrustFundDonor.last_name, EagleTrustFundDonor.first_name).all()
+            
+            # Log any errors that were encountered
+            if any(error_log.values()):
+                total_errors = sum(len(errors) for errors in error_log.values())
+                app.logger.warning(f"Mailing list generation completed with {total_errors} minor issues handled")
+                for error_type, errors in error_log.items():
+                    if errors:
+                        app.logger.warning(f"{error_type}: {len(errors)} issues")
+            
+            # Log final statistics
+            app.logger.info(f"Mailing list generation completed: Query 1: {query_stats.get('query1', 0)}, "
+                          f"Query 2: {query_stats.get('query2', 0)}, Query 3: {query_stats.get('query3', 0)}, "
+                          f"Query 4: {query_stats.get('query4', 0)}, Total unique: {len(all_donor_ids)}")
             
             # Prepare CSV data
             headers = [
@@ -2029,7 +2296,95 @@ def mailing_list_generator():
             ]
             
             data = []
-            for donor in donors:
+            for donor in final_donors:
+                # Build full name
+                full_name_parts = []
+                if donor.name_prefix:
+                    full_name_parts.append(donor.name_prefix)
+                if donor.first_name:
+                    full_name_parts.append(donor.first_name)
+                if donor.last_name:
+                    full_name_parts.append(donor.last_name)
+                if donor.suffix:
+                    full_name_parts.append(donor.suffix)
+                
+                full_name = ' '.join(full_name_parts) if full_name_parts else donor.formatted_full_name or ''
+                
+                data.append([
+                    full_name,
+                    donor.base_donor_id,
+                    donor.salutation_dear or '',
+                    donor.address_1_company or '',
+                    donor.address_2_secondary or '',
+                    donor.address_3_primary or '',
+                    donor.city or '',
+                    donor.state or '',
+                    donor.zip_plus4 or '',
+                    donor.latest_date or ''
+                ])
+            
+            # Generate CSV
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            filename = f"{query_title}_candidates_{timestamp}.csv"
+            
+            # Show success message with statistics
+            flash(f"Mailing list candidates generated successfully! Found {len(final_donors)} candidates. "
+                  f"Query breakdown: Recent transactions: {query_stats.get('query1', 0)}, "
+                  f"Historical donors: {query_stats.get('query2', 0)}, "
+                  f"Lifetime + PS: {query_stats.get('query3', 0)}, "
+                  f"Exempt + PS: {query_stats.get('query4', 0)}.", "success")
+            
+            return generate_csv(data, headers, filename)
+            
+        except Exception as e:
+            app.logger.error(f"Error generating mailing list: {e}")
+            flash(f"Error generating mailing list: {e}", "error")
+            return render_template("mailing_list_generator.html")
+        finally:
+            session.close()
+    
+    # GET request - show form
+    return render_template("mailing_list_generator.html")
+
+@app.route("/generate_mailing_list", methods=["GET", "POST"])
+def generate_mailing_list():
+    if request.method == "POST":
+        session = Session()
+        try:
+            # Get form parameters
+            query_title = request.form.get('query_title', '').strip()
+            
+            if not query_title:
+                flash("Query title is required.", "error")
+                return render_template("generate_mailing_list.html")
+            
+            app.logger.info(f"Generating mailing list '{query_title}' for all active mailing list donors")
+            
+            # Get all donors with mailing_list_status = TRUE
+            final_donors = session.query(EagleTrustFundDonor).filter(
+                EagleTrustFundDonor.mailing_list_status == True
+            ).order_by(EagleTrustFundDonor.last_name, EagleTrustFundDonor.first_name).all()
+            
+            if not final_donors:
+                flash("No donors found with active mailing list status.", "warning")
+                return render_template("generate_mailing_list.html")
+            
+            # Prepare CSV data with same format as candidates
+            headers = [
+                'Full Name',
+                'Donor ID',
+                'Salutation', 
+                'Company/Address Line 1',
+                'Address Line 2',
+                'Address Line 3',
+                'City',
+                'State',
+                'ZIP Code',
+                'Latest Transaction Date'
+            ]
+            
+            data = []
+            for donor in final_donors:
                 # Build full name
                 full_name_parts = []
                 if donor.name_prefix:
@@ -2060,17 +2415,20 @@ def mailing_list_generator():
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             filename = f"{query_title}_allmail_query_{timestamp}.csv"
             
+            # Show success message
+            flash(f"Mailing list generated successfully! Found {len(final_donors)} active donors.", "success")
+            
             return generate_csv(data, headers, filename)
             
         except Exception as e:
             app.logger.error(f"Error generating mailing list: {e}")
             flash(f"Error generating mailing list: {e}", "error")
-            return render_template("mailing_list_generator.html")
+            return render_template("generate_mailing_list.html")
         finally:
             session.close()
     
     # GET request - show form
-    return render_template("mailing_list_generator.html")
+    return render_template("generate_mailing_list.html")
 
 @app.route("/transaction/<int:transaction_id>/edit", methods=["GET", "POST"])
 def edit_transaction(transaction_id):
@@ -2292,6 +2650,53 @@ def remove_gift_subscription(donor_id):
     except Exception as e:
         session.rollback()
         app.logger.error(f"Error removing gift subscription for donor {donor_id}: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+    finally:
+        session.close()
+
+@app.route("/quick_edit_mailing_list/<int:donor_id>", methods=["POST"])
+def quick_edit_mailing_list(donor_id):
+    session = Session()
+    try:
+        data = request.get_json()
+        mailing_list_status = data.get('mailing_list_status')
+        mailing_until_date = data.get('mailing_until_date')
+        
+        # Get the donor
+        donor = session.query(EagleTrustFundDonor).filter(
+            EagleTrustFundDonor.base_donor_id == donor_id
+        ).first()
+        
+        if not donor:
+            return jsonify({'success': False, 'error': 'Donor not found'})
+        
+        # Update mailing list status
+        if mailing_list_status is not None:
+            donor.mailing_list_status = bool(mailing_list_status)
+        
+        # Update mailing until date
+        if mailing_until_date is not None:
+            if mailing_until_date == '':
+                donor.mailing_until_date = None
+            else:
+                try:
+                    # Parse the date string
+                    parsed_date = datetime.strptime(mailing_until_date, '%Y-%m-%d').date()
+                    donor.mailing_until_date = parsed_date
+                except ValueError:
+                    return jsonify({'success': False, 'error': 'Invalid date format'})
+        
+        session.commit()
+        
+        return jsonify({
+            'success': True,
+            'mailing_list_status': donor.mailing_list_status,
+            'mailing_until_date': donor.mailing_until_date.strftime('%Y-%m-%d') if donor.mailing_until_date else None
+        })
+        
+    except Exception as e:
+        session.rollback()
+        app.logger.error(f"Error updating mailing list status for donor {donor_id}: {e}")
         return jsonify({'success': False, 'error': str(e)})
     finally:
         session.close()

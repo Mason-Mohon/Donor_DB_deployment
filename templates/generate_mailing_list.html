@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Mailing List Generator</title>
+    <title>Generate Mailing List</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -44,8 +44,7 @@
             font-weight: bold;
             color: #333;
         }
-        input[type="text"],
-        input[type="date"] {
+        input[type="text"] {
             width: 300px;
             padding: 8px;
             border: 1px solid #ddd;
@@ -73,22 +72,6 @@
             border-radius: 5px;
             margin: 20px 0;
         }
-        .criteria-box {
-            background: #fff3cd;
-            color: #856404;
-            padding: 20px;
-            border: 1px solid #ffeeba;
-            border-radius: 5px;
-            margin: 20px 0;
-        }
-        .output-box {
-            background: #d4edda;
-            color: #155724;
-            padding: 20px;
-            border: 1px solid #c3e6cb;
-            border-radius: 5px;
-            margin: 20px 0;
-        }
         .alert {
             padding: 10px;
             margin-bottom: 15px;
@@ -109,30 +92,14 @@
             color: #856404;
             border: 1px solid #ffeeba;
         }
-        .criteria-list {
-            margin: 10px 0;
-            padding-left: 20px;
-        }
-        .criteria-list li {
-            margin-bottom: 8px;
-            line-height: 1.4;
-        }
-        .exclusion-note {
-            background: #f8d7da;
-            color: #721c24;
-            padding: 10px;
-            border-radius: 3px;
-            margin: 10px 0;
-            font-weight: bold;
-        }
     </style>
 </head>
 <body>
-    <h1>Find Mailing List Candidates</h1>
+    <h1>Generate Mailing List</h1>
 
     <div class="header-actions">
         <a href="{{ url_for('home') }}" class="action-button">Back to Search</a>
-        <a href="{{ url_for('generate_mailing_list') }}" class="action-button" style="background: #28a745;">Generate Mailing List</a>
+        <a href="{{ url_for('mailing_list_candidates') }}" class="action-button" style="background: #e83e8c;">Find Candidates</a>
     </div>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -144,12 +111,12 @@
     {% endwith %}
 
     <div class="info-box">
-        <h3>About Mailing List Candidates</h3>
-        <p>This tool finds potential donors who meet specific criteria but are not currently on the mailing list. Use this to discover new candidates, then add them to your active mailing list.</p>
+        <h3>About Generate Mailing List</h3>
+        <p>This tool generates a mailing list CSV file containing all donors who have been marked for mailing list inclusion. Simply provide a title for your mailing list and download the results.</p>
     </div>
 
     <form method="POST" class="form-container">
-        <h3>Find Candidates</h3>
+        <h3>Generate Mailing List</h3>
         
         <div class="form-group">
             <label for="query_title">Mailing Title:</label>
@@ -160,34 +127,17 @@
             </small>
         </div>
 
-        <div class="form-group">
-            <label for="start_date">Start Date:</label>
-            <input type="date" id="start_date" name="start_date" value="{{ request.form.get('start_date', '') }}" required>
-            <small style="color: #666; display: block; margin-top: 2px; margin-left: 160px;">
-                Reference date for transaction and donor criteria
-            </small>
-        </div>
-
         <button type="submit" class="generate-button">
-            Find Candidates CSV
+            Generate Mailing List CSV
         </button>
     </form>
 
-    <div class="criteria-box">
-        <h3>📋 Candidate Selection Criteria</h3>
-        <p><strong>This tool finds donors who meet the mailing list criteria but are NOT currently on the active mailing list.</strong></p>
-        <p>Candidates are identified using the same proven criteria as the original mailing list generator, but filtered to show only those with <code>mailing_list_status = FALSE</code>.</p>
-        
-        <div class="exclusion-note">
-            💡 <strong>Pro Tip:</strong> Use this tool regularly to discover donors who may have become eligible for mailing list inclusion due to recent activity or status changes.
-        </div>
-    </div>
-
-    <div class="output-box">
+    <div class="info-box">
         <h3>📄 CSV Output Fields</h3>
         <p>The generated CSV file will contain the following columns:</p>
         <ul>
             <li><strong>Full Name:</strong> Complete name including prefix, first, last, and suffix</li>
+            <li><strong>Donor ID:</strong> Unique identifier for the donor</li>
             <li><strong>Salutation:</strong> Preferred greeting (if available)</li>
             <li><strong>Company/Address Line 1:</strong> Business name or primary address</li>
             <li><strong>Address Line 2:</strong> Secondary address information</li>
@@ -198,17 +148,16 @@
             <li><strong>Latest Transaction Date:</strong> Date of most recent donation</li>
         </ul>
         
-        <p><strong>File naming:</strong> <code>[Your Title]_candidates_[timestamp].csv</code></p>
+        <p><strong>File naming:</strong> <code>[Your Title]_allmail_query_[timestamp].csv</code></p>
     </div>
 
     <div class="info-box">
         <h4>💡 Usage Tips</h4>
         <ul>
-            <li><strong>Review candidates carefully:</strong> Check each candidate before adding them to your active mailing list</li>
-            <li><strong>Choose your start date carefully:</strong> This date determines recent transaction criteria and lookback periods</li>
-            <li><strong>Regular monitoring:</strong> Run this tool periodically to catch newly eligible donors</li>
-            <li><strong>Next step:</strong> Use donor individual pages to update mailing list status for promising candidates</li>
+            <li><strong>Active donors only:</strong> Only includes donors with active mailing list status</li>
+            <li><strong>File handling:</strong> The CSV can be opened in Excel or imported into mail merge software</li>
+            <li><strong>Need to add more donors?</strong> Use the "Find Candidates" button to discover potential additions</li>
         </ul>
     </div>
 </body>
-</html> 
+</html>

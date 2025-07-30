@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date, DECIMAL, ForeignKey
+from sqlalchemy import Column, Integer, String, Date, DECIMAL, ForeignKey, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
@@ -68,6 +68,10 @@ class EagleTrustFundDonor(Base):
     total_dollar_amount         = Column(DECIMAL(10, 2))
     total_responses_non_zero    = Column(Integer)
     total_responses_includes_zero = Column(Integer)
+    
+    # Mailing list fields
+    mailing_list_status         = Column(Boolean, default=False)
+    mailing_until_date          = Column(Date)
     
     # Gift tracking field - donor ID who received a gift subscription from this donor
     gifted_to_donor_id          = Column(Integer, ForeignKey("eagletrustfund_donors.base_donor_id"))

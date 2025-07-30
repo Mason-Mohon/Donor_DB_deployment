@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Batch Processing Complete</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 20px auto;
+            padding: 0 20px;
+            line-height: 1.6;
+        }
+        .success-header {
+            background: #d4edda;
+            color: #155724;
+            padding: 20px;
+            border: 1px solid #c3e6cb;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .success-header h1 {
+            margin: 0 0 10px 0;
+            color: #155724;
+        }
+        .success-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .stat-box {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #28a745;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #28a745;
+            margin-bottom: 5px;
+        }
+        .stat-label {
+            color: #666;
+            font-size: 0.9em;
+        }
+        .action-section {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 8px;
+            margin: 25px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .action-section h3 {
+            margin-top: 0;
+            color: #333;
+            border-bottom: 2px solid #e9ecef;
+            padding-bottom: 10px;
+        }
+        .download-buttons {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .download-button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: white;
+            text-decoration: none;
+            font-size: 14px;
+        }
+        .download-button.pdf {
+            background-color: #dc3545;
+        }
+        .download-button.pdf:hover {
+            background-color: #c82333;
+        }
+        .download-button.csv {
+            background-color: #28a745;
+        }
+        .download-button.csv:hover {
+            background-color: #218838;
+        }
+        .mailing-list-section {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            padding: 25px;
+            border-radius: 8px;
+            margin: 25px 0;
+        }
+        .mailing-list-section h3 {
+            margin-top: 0;
+            color: #856404;
+            border-bottom: 2px solid #ffeaa7;
+            padding-bottom: 10px;
+        }
+        .candidates-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: white;
+            border-radius: 6px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .candidates-table th,
+        .candidates-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .candidates-table th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+            color: #495057;
+        }
+        .candidates-table tr:hover {
+            background-color: #f8f9fa;
+        }
+        .select-all-container {
+            margin: 15px 0;
+            padding: 10px;
+            background: #e8f4ff;
+            border-radius: 5px;
+        }
+        .mailing-list-actions {
+            margin-top: 20px;
+            text-align: center;
+        }
+        .add-to-mailing-button {
+            background: #007bff;
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 16px;
+        }
+        .add-to-mailing-button:hover {
+            background: #0056b3;
+        }
+        .add-to-mailing-button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        .donor-link {
+            color: #007bff;
+            text-decoration: none;
+        }
+        .donor-link:hover {
+            text-decoration: underline;
+        }
+        .back-to-search-prominent {
+            display: inline-block;
+            margin: 10px 0 20px 0;
+            background: #007bff;
+            color: white;
+            text-decoration: none;
+            padding: 12px 20px;
+            border-radius: 5px;
+            font-weight: bold;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .back-to-search-prominent:hover {
+            background: #0056b3;
+            color: white;
+            text-decoration: none;
+        }
+        .alert {
+            padding: 12px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+        .alert-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .alert-warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+        .alert-error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h1 style="margin: 0;">Batch Processing Complete</h1>
+        <a href="{{ url_for('home') }}" class="back-to-search-prominent">&larr; Back to Search</a>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="success-header">
+        <h1>✅ Batch Processing Successful!</h1>
+        <p>Your transaction batch has been processed and saved to the database.</p>
+        
+        <div class="success-stats">
+            <div class="stat-box">
+                <div class="stat-value">{{ num_transactions }}</div>
+                <div class="stat-label">Transactions Processed</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value">${{ "%.2f"|format(total_amount) }}</div>
+                <div class="stat-label">Total Amount</div>
+            </div>
+            {% if batch_num %}
+            <div class="stat-box">
+                <div class="stat-value">{{ batch_num }}</div>
+                <div class="stat-label">Batch Number</div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if batch_num %}
+    <div class="action-section">
+        <h3>📄 Download Batch Report</h3>
+        <p>Download a detailed report of the processed transactions in PDF or CSV format.</p>
+        
+        <div class="download-buttons">
+            <form method="POST" action="{{ url_for('download_transaction_results', format='pdf') }}" style="display: inline;">
+                <input type="hidden" name="update_batch_num" value="{{ batch_num }}">
+                <button type="submit" class="download-button pdf">
+                    📄 Download PDF Report
+                </button>
+            </form>
+            <form method="POST" action="{{ url_for('download_transaction_results', format='csv') }}" style="display: inline;">
+                <input type="hidden" name="update_batch_num" value="{{ batch_num }}">
+                <button type="submit" class="download-button csv">
+                    📊 Download CSV Report
+                </button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if mailing_list_candidates %}
+    <div class="mailing-list-section">
+        <h3>📮 Mailing List Candidates</h3>
+        <p>The following donors from this batch are <strong>not currently on the mailing list</strong>. You can add them by selecting the checkboxes below and clicking "Add to Mailing List".</p>
+        
+        <form method="POST" action="{{ url_for('update_batch_mailing_list') }}" id="mailing-list-form">
+            <div class="select-all-container">
+                <label>
+                    <input type="checkbox" id="select-all"> 
+                    <strong>Select All ({{ mailing_list_candidates|length }} candidates)</strong>
+                </label>
+            </div>
+            
+            <table class="candidates-table">
+                <thead>
+                    <tr>
+                        <th style="width: 50px;">Select</th>
+                        <th>Donor ID</th>
+                        <th>Name</th>
+                        <th>City, State</th>
+                        <th>Latest Transaction</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for donor in mailing_list_candidates %}
+                    <tr>
+                        <td>
+                            <input type="checkbox" name="donor_ids" value="{{ donor.base_donor_id }}" class="donor-checkbox">
+                        </td>
+                        <td>
+                            <a href="{{ url_for('donor', donor_id=donor.base_donor_id) }}" class="donor-link">
+                                {{ donor.base_donor_id }}
+                            </a>
+                        </td>
+                        <td>
+                            <a href="{{ url_for('donor', donor_id=donor.base_donor_id) }}" class="donor-link">
+                                {{ donor.formatted_full_name or (donor.first_name + ' ' + donor.last_name) or 'No name available' }}
+                            </a>
+                        </td>
+                        <td>
+                            {{ [donor.city, donor.state] | reject('none') | reject('equalto', '') | join(', ') or 'No address' }}
+                        </td>
+                        <td>
+                            {{ donor.latest_date or 'No transactions' }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            
+            <div class="mailing-list-actions">
+                <button type="submit" class="add-to-mailing-button" id="add-to-mailing-btn" disabled>
+                    Add Selected Donors to Mailing List
+                </button>
+            </div>
+        </form>
+    </div>
+    {% elif batch_num %}
+    <div class="mailing-list-section">
+        <h3>📮 Mailing List Status</h3>
+        <div class="empty-state">
+            <p>✅ All donors from this batch are already on the mailing list!</p>
+            <p>No additional mailing list updates needed.</p>
+        </div>
+    </div>
+    {% endif %}
+
+    <div style="margin-top: 40px; text-align: center;">
+        <a href="{{ url_for('batch_transactions') }}" style="display: inline-block; color: #007bff; text-decoration: none; padding: 10px 20px; border: 1px solid #007bff; border-radius: 4px; margin-right: 10px;">
+            Process Another Batch
+        </a>
+        <a href="{{ url_for('transaction_search') }}" style="display: inline-block; color: #28a745; text-decoration: none; padding: 10px 20px; border: 1px solid #28a745; border-radius: 4px;">
+            View All Transactions
+        </a>
+    </div>
+
+    <script>
+        // Handle select all functionality
+        document.getElementById('select-all').addEventListener('change', function() {
+            const checkboxes = document.querySelectorAll('.donor-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = this.checked;
+            });
+            updateButtonState();
+        });
+
+        // Handle individual checkbox changes
+        document.querySelectorAll('.donor-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                updateSelectAllState();
+                updateButtonState();
+            });
+        });
+
+        function updateSelectAllState() {
+            const checkboxes = document.querySelectorAll('.donor-checkbox');
+            const selectAll = document.getElementById('select-all');
+            const checkedCount = document.querySelectorAll('.donor-checkbox:checked').length;
+            
+            if (checkedCount === 0) {
+                selectAll.indeterminate = false;
+                selectAll.checked = false;
+            } else if (checkedCount === checkboxes.length) {
+                selectAll.indeterminate = false;
+                selectAll.checked = true;
+            } else {
+                selectAll.indeterminate = true;
+                selectAll.checked = false;
+            }
+        }
+
+        function updateButtonState() {
+            const checkedCount = document.querySelectorAll('.donor-checkbox:checked').length;
+            const button = document.getElementById('add-to-mailing-btn');
+            
+            button.disabled = checkedCount === 0;
+            
+            if (checkedCount === 0) {
+                button.textContent = 'Add Selected Donors to Mailing List';
+            } else if (checkedCount === 1) {
+                button.textContent = 'Add 1 Donor to Mailing List';
+            } else {
+                button.textContent = `Add ${checkedCount} Donors to Mailing List`;
+            }
+        }
+
+        // Confirmation before submitting
+        document.getElementById('mailing-list-form').addEventListener('submit', function(e) {
+            const checkedCount = document.querySelectorAll('.donor-checkbox:checked').length;
+            if (checkedCount === 0) {
+                e.preventDefault();
+                alert('Please select at least one donor to add to the mailing list.');
+                return;
+            }
+            
+            const message = checkedCount === 1 
+                ? 'Are you sure you want to add this donor to the mailing list?'
+                : `Are you sure you want to add ${checkedCount} donors to the mailing list?`;
+                
+            if (!confirm(message)) {
+                e.preventDefault();
+            }
+        });
+
+        // Initialize button state
+        updateButtonState();
+    </script>
+</body>
+</html>
