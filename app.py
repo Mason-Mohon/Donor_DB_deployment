@@ -2385,18 +2385,27 @@ def generate_mailing_list():
             
             data = []
             for donor in final_donors:
-                # Build full name
-                full_name_parts = []
-                if donor.name_prefix:
-                    full_name_parts.append(donor.name_prefix)
-                if donor.first_name:
-                    full_name_parts.append(donor.first_name)
-                if donor.last_name:
-                    full_name_parts.append(donor.last_name)
-                if donor.suffix:
-                    full_name_parts.append(donor.suffix)
-                
-                full_name = ' '.join(full_name_parts) if full_name_parts else donor.formatted_full_name or ''
+                # Build full name with priority logic
+                # Priority 1: Use formatted_full_name if it exists and has content
+                if donor.formatted_full_name and donor.formatted_full_name.strip():
+                    full_name = donor.formatted_full_name.strip()
+                else:
+                    # Priority 2: Build from individual name parts
+                    full_name_parts = []
+                    if donor.name_prefix:
+                        full_name_parts.append(donor.name_prefix)
+                    if donor.first_name:
+                        full_name_parts.append(donor.first_name)
+                    if donor.last_name:
+                        full_name_parts.append(donor.last_name)
+                    if donor.suffix:
+                        full_name_parts.append(donor.suffix)
+                    
+                    if full_name_parts:
+                        full_name = ' '.join(full_name_parts)
+                    else:
+                        # Priority 3: Use company name if no name information available
+                        full_name = donor.address_1_company.strip() if donor.address_1_company and donor.address_1_company.strip() else ''
                 
                 data.append([
                     full_name,
