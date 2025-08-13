@@ -168,9 +168,42 @@
             </small>
         </div>
 
-        <button type="submit" class="generate-button">
-            Find Candidates CSV
-        </button>
+        <div class="form-group">
+            <label for="end_date">End Date:</label>
+            <input type="date" id="end_date" name="end_date" value="{{ request.form.get('end_date', '') }}">
+            <small style="color: #666; display: block; margin-top: 2px; margin-left: 160px;">
+                If blank, defaults to today
+            </small>
+        </div>
+
+        <div class="form-group">
+            <label for="historical_start_date">Historical Start Date:</label>
+            <input type="date" id="historical_start_date" name="historical_start_date" value="{{ request.form.get('historical_start_date', '') }}">
+            <small style="color: #666; display: block; margin-top: 2px; margin-left: 160px;">
+                If blank, defaults to 3 years before Start Date
+            </small>
+        </div>
+
+        <div class="form-group">
+            <label for="exclusion_start_date">Exclusion Start:</label>
+            <input type="date" id="exclusion_start_date" name="exclusion_start_date" value="{{ request.form.get('exclusion_start_date', '') }}">
+        </div>
+        <div class="form-group">
+            <label for="exclusion_end_date">Exclusion End:</label>
+            <input type="date" id="exclusion_end_date" name="exclusion_end_date" value="{{ request.form.get('exclusion_end_date', '') }}">
+            <small style="color: #666; display: block; margin-top: 2px; margin-left: 160px;">
+                Optional: provide both dates to exclude donors with recent activity in the window
+            </small>
+        </div>
+
+        <div style="display:flex; gap:10px; align-items:center;">
+            <button type="submit" name="action" value="show" class="generate-button">
+                Show Candidates
+            </button>
+            <button type="submit" name="action" value="download" class="generate-button" style="background:#0069d9;">
+                Download CSV
+            </button>
+        </div>
     </form>
 
     <div class="criteria-box">
@@ -185,21 +218,106 @@
 
     <div class="output-box">
         <h3>📄 CSV Output Fields</h3>
-        <p>The generated CSV file will contain the following columns:</p>
-        <ul>
-            <li><strong>Full Name:</strong> Complete name including prefix, first, last, and suffix</li>
-            <li><strong>Salutation:</strong> Preferred greeting (if available)</li>
-            <li><strong>Company/Address Line 1:</strong> Business name or primary address</li>
-            <li><strong>Address Line 2:</strong> Secondary address information</li>
-            <li><strong>Address Line 3:</strong> Primary street address</li>
-            <li><strong>City:</strong> City name</li>
-            <li><strong>State:</strong> State abbreviation</li>
-            <li><strong>ZIP Code:</strong> Postal code including +4 extension</li>
-            <li><strong>Latest Transaction Date:</strong> Date of most recent donation</li>
-        </ul>
-        
+        <p>The CSV contains: Full Name, Donor ID, Salutation, Company/Address Line 1, Address Line 2, Address Line 3, City, State, ZIP Code, Latest Transaction Date.</p>
         <p><strong>File naming:</strong> <code>[Your Title]_candidates_[timestamp].csv</code></p>
     </div>
+
+    {% if candidates %}
+    <div class="form-container" style="background:#fff;">
+        <h3>Results ({{ total_results }} found)</h3>
+        <table style="width:100%; border-collapse: collapse;">
+            <thead>
+                <tr style="background:#eee;">
+                    <th style="text-align:left; padding:8px; border:1px solid #ddd;">Donor ID</th>
+                    <th style="text-align:left; padding:8px; border:1px solid #ddd;">Full Name</th>
+                    <th style="text-align:left; padding:8px; border:1px solid #ddd;">Donor Status</th>
+                    <th style="text-align:left; padding:8px; border:1px solid #ddd;">Newsletter Status</th>
+                    <th style="text-align:left; padding:8px; border:1px solid #ddd;">City</th>
+                    <th style="text-align:left; padding:8px; border:1px solid #ddd;">State</th>
+                    <th style="text-align:left; padding:8px; border:1px solid #ddd;">Latest Txn</th>
+                    <th style="text-align:left; padding:8px; border:1px solid #ddd;">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for d in candidates %}
+                {% set full_name = d.formatted_full_name or ((d.name_prefix ~ ' ' if d.name_prefix else '') ~ (d.first_name ~ ' ' if d.first_name else '') ~ (d.last_name if d.last_name else '') ~ (' ' ~ d.suffix if d.suffix else '')) %}
+                <tr data-donor-id="{{ d.base_donor_id }}">
+                    <td style="padding:8px; border:1px solid #ddd;">{{ d.base_donor_id }}</td>
+                    <td style="padding:8px; border:1px solid #ddd;"><a href="{{ url_for('donor', donor_id=d.base_donor_id) }}" target="_blank" rel="noopener">{{ full_name|trim }}</a></td>
+                    <td style="padding:8px; border:1px solid #ddd;">{{ d.donor_status or '' }}{% if d.donor_status_desc %} - {{ d.donor_status_desc }}{% endif %}</td>
+                    <td style="padding:8px; border:1px solid #ddd;">{{ d.newsletter_status or '' }}{% if d.newsletter_status_desc %} - {{ d.newsletter_status_desc }}{% endif %}</td>
+                    <td style="padding:8px; border:1px solid #ddd;">{{ d.city or '' }}</td>
+                    <td style="padding:8px; border:1px solid #ddd;">{{ d.state or '' }}</td>
+                    <td style="padding:8px; border:1px solid #ddd;">{{ d.latest_date or '' }}</td>
+                    <td style="padding:8px; border:1px solid #ddd;">
+                        <button class="action-button" style="background:#28a745;" onclick="toggleMailingList(event, {{ d.base_donor_id }}, true)">Add</button>
+                        <button class="action-button" style="background:#6c757d; display:none;" onclick="toggleMailingList(event, {{ d.base_donor_id }}, false)">Undo</button>
+                        <span class="row-status" style="margin-left:8px; color:#555;"></span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        {% if total_pages and total_pages > 1 %}
+        <div style="margin-top:15px; display:flex; gap:10px; align-items:center;">
+            <form method="POST">
+                <input type="hidden" name="action" value="show" />
+                <input type="hidden" name="page" value="{{ current_page - 1 }}" />
+                {% for key, val in submitted.items() %}
+                <input type="hidden" name="{{ key }}" value="{{ val }}" />
+                {% endfor %}
+                <button class="action-button" {% if current_page <= 1 %}disabled{% endif %}>Prev</button>
+            </form>
+            <div>Page {{ current_page }} of {{ total_pages }}</div>
+            <form method="POST">
+                <input type="hidden" name="action" value="show" />
+                <input type="hidden" name="page" value="{{ current_page + 1 }}" />
+                {% for key, val in submitted.items() %}
+                <input type="hidden" name="{{ key }}" value="{{ val }}" />
+                {% endfor %}
+                <button class="action-button" {% if current_page >= total_pages %}disabled{% endif %}>Next</button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+    async function toggleMailingList(event, donorId, enable) {
+        event.preventDefault();
+        const row = event.target.closest('tr');
+        const buttons = row.querySelectorAll('button');
+        const addBtn = buttons[0];
+        const undoBtn = buttons[1];
+        const statusEl = row.querySelector('.row-status');
+        addBtn.disabled = true; undoBtn.disabled = true;
+        statusEl.textContent = enable ? 'Adding…' : 'Undoing…';
+        try {
+            const resp = await fetch(`{{ url_for('quick_edit_mailing_list', donor_id=0) }}`.replace('0', donorId), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mailing_list_status: enable, mailing_until_date: '' })
+            });
+            const data = await resp.json();
+            if (!data.success) throw new Error(data.error || 'Request failed');
+            if (data.mailing_list_status === true) {
+                addBtn.style.display = 'none';
+                undoBtn.style.display = '';
+                statusEl.textContent = 'On mailing list';
+            } else {
+                addBtn.style.display = '';
+                undoBtn.style.display = 'none';
+                statusEl.textContent = 'Removed';
+            }
+        } catch (e) {
+            alert('Error: ' + e.message);
+            statusEl.textContent = '';
+        } finally {
+            addBtn.disabled = false; undoBtn.disabled = false;
+        }
+    }
+    </script>
+    {% endif %}
 
     <div class="info-box">
         <h4>💡 Usage Tips</h4>

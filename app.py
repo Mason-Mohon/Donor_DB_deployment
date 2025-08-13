@@ -2021,15 +2021,19 @@ def mailing_list_candidates():
             query_title = request.form.get('query_title', '').strip()
             start_date_str = request.form.get('start_date', '').strip()
             end_date_str = request.form.get('end_date', '').strip()
-            
+            historical_start_date_str = request.form.get('historical_start_date', '').strip()
+            exclusion_start_date_str = request.form.get('exclusion_start_date', '').strip()
+            exclusion_end_date_str = request.form.get('exclusion_end_date', '').strip()
+            action = request.form.get('action', 'show')
+
             if not query_title:
                 flash("Query title is required.", "error")
                 return render_template("mailing_list_generator.html")
-            
+
             if not start_date_str:
                 flash("Start date is required.", "error")
                 return render_template("mailing_list_generator.html")
-            
+
             # Parse dates with enhanced error handling
             try:
                 start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
@@ -2037,13 +2041,27 @@ def mailing_list_candidates():
                     end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
                 else:
                     end_date = datetime.now().date()
-                three_years_before = datetime.strptime('2016-12-31', '%Y-%m-%d').date()
+
+                if historical_start_date_str:
+                    historical_start_date = datetime.strptime(historical_start_date_str, '%Y-%m-%d').date()
+                else:
+                    # Default to 3 years before start_date if not provided
+                    historical_start_date = start_date - timedelta(days=365*3)
+
+                exclusion_start_date = None
+                exclusion_end_date = None
+                if exclusion_start_date_str and exclusion_end_date_str:
+                    exclusion_start_date = datetime.strptime(exclusion_start_date_str, '%Y-%m-%d').date()
+                    exclusion_end_date = datetime.strptime(exclusion_end_date_str, '%Y-%m-%d').date()
             except ValueError:
                 flash("Invalid date format. Please use YYYY-MM-DD.", "error")
                 return render_template("mailing_list_generator.html")
-            
-            app.logger.info(f"Generating mailing list candidates '{query_title}' for date range {start_date} to {end_date}")
-            
+
+            app.logger.info(
+                f"Generating mailing list candidates '{query_title}' for date range {start_date} to {end_date}; "
+                f"historical start {historical_start_date}; exclusion window {exclusion_start_date} to {exclusion_end_date}"
+            )
+
             # Initialize tracking variables
             all_donor_ids = set()
             error_log = {
@@ -2053,7 +2071,7 @@ def mailing_list_candidates():
                 'data_inconsistencies': []
             }
             query_stats = {}
-            
+
             # QUERY 1: Recent transactions with A/E newsletter status
             app.logger.info("Running Query 1: Recent transactions with A/E newsletter status...")
             try:
@@ -2065,7 +2083,6 @@ def mailing_list_candidates():
                         EagleTrustFundTransaction.trans_date >= start_date,
                         EagleTrustFundTransaction.trans_date <= end_date,
                         EagleTrustFundDonor.newsletter_status.in_(['A', 'E']),
-                        # Enhanced NULL handling for donor_status
                         or_(
                             EagleTrustFundDonor.donor_status.is_(None),
                             EagleTrustFundDonor.donor_status == '',
@@ -2073,32 +2090,27 @@ def mailing_list_candidates():
                         )
                     )
                 ).distinct().all()
-                
+
                 query1_ids = {row[0] for row in query1_results}
                 all_donor_ids.update(query1_ids)
                 query_stats['query1'] = len(query1_ids)
-                app.logger.info(f"Query 1 found: {len(query1_ids)} donors")
-                
             except Exception as e:
                 app.logger.error(f"Error in Query 1: {e}")
                 error_log['data_inconsistencies'].append(f"Query 1 error: {e}")
-                query1_ids = set()
                 query_stats['query1'] = 0
-            
-            # QUERY 2: Historical $100+ transactions with enhanced error handling
+
+            # QUERY 2: Historical $100+ transactions (parameterized)
             app.logger.info("Running Query 2: Historical $100+ transactions...")
             try:
-                # First, get all donors with historical $100+ transactions
                 historical_big_donors = session.query(EagleTrustFundDonor.base_donor_id).join(
                     EagleTrustFundTransaction,
                     EagleTrustFundDonor.base_donor_id == EagleTrustFundTransaction.base_donor_id
                 ).filter(
                     and_(
-                        EagleTrustFundTransaction.trans_date >= three_years_before,
+                        EagleTrustFundTransaction.trans_date >= historical_start_date,
                         EagleTrustFundTransaction.trans_date <= start_date,
                         EagleTrustFundTransaction.trans_amount >= 100,
                         EagleTrustFundDonor.newsletter_status == 'A',
-                        # Enhanced NULL handling for donor_status
                         or_(
                             EagleTrustFundDonor.donor_status.is_(None),
                             EagleTrustFundDonor.donor_status == '',
@@ -2106,186 +2118,119 @@ def mailing_list_candidates():
                         )
                     )
                 ).distinct().all()
-                
+
                 historical_big_donor_ids = {row[0] for row in historical_big_donors}
-                
-                # Enhanced exclusion logic with better date handling
-                exclusion_start = '2017-01-02'
-                exclusion_end = '2019-12-31'
+
+                # Optional exclusion window
                 recent_donors_to_exclude = set()
-                
-                # Method 1: Direct string comparison (handles most cases)
-                try:
-                    exclude_query1 = session.query(EagleTrustFundDonor.base_donor_id).filter(
-                        and_(
-                            EagleTrustFundDonor.latest_date.isnot(None),
-                            EagleTrustFundDonor.latest_date != '',
-                            EagleTrustFundDonor.latest_date >= exclusion_start,
-                            EagleTrustFundDonor.latest_date <= exclusion_end
-                        )
-                    ).all()
-                    recent_donors_to_exclude.update({row[0] for row in exclude_query1})
-                except Exception as e:
-                    error_log['date_parsing_errors'].append(f"Date comparison method 1 failed: {e}")
-                
-                # Method 2: Use actual transaction records as backup
-                try:
-                    from sqlalchemy import text
-                    exclude_query2 = session.query(EagleTrustFundTransaction.base_donor_id).filter(
-                        and_(
-                            EagleTrustFundTransaction.trans_date >= datetime.strptime(exclusion_start, '%Y-%m-%d').date(),
-                            EagleTrustFundTransaction.trans_date <= datetime.strptime(exclusion_end, '%Y-%m-%d').date()
-                        )
-                    ).group_by(EagleTrustFundTransaction.base_donor_id).having(
-                        text('MAX(trans_date) >= :start AND MAX(trans_date) <= :end')
-                    ).params(start=exclusion_start, end=exclusion_end).all()
-                    recent_donors_to_exclude.update({row[0] for row in exclude_query2})
-                except Exception as e:
-                    error_log['date_parsing_errors'].append(f"Transaction-based exclusion failed: {e}")
-                
+                if exclusion_start_date and exclusion_end_date:
+                    try:
+                        # Method 1: compare donor.latest_date strings
+                        exclude_query1 = session.query(EagleTrustFundDonor.base_donor_id).filter(
+                            and_(
+                                EagleTrustFundDonor.latest_date.isnot(None),
+                                EagleTrustFundDonor.latest_date != '',
+                                EagleTrustFundDonor.latest_date >= exclusion_start_date.strftime('%Y-%m-%d'),
+                                EagleTrustFundDonor.latest_date <= exclusion_end_date.strftime('%Y-%m-%d')
+                            )
+                        ).all()
+                        recent_donors_to_exclude.update({row[0] for row in exclude_query1})
+                    except Exception as e:
+                        error_log['date_parsing_errors'].append(f"Date comparison latest_date failed: {e}")
+
+                    try:
+                        from sqlalchemy import text
+                        exclude_query2 = session.query(EagleTrustFundTransaction.base_donor_id).filter(
+                            and_(
+                                EagleTrustFundTransaction.trans_date >= exclusion_start_date,
+                                EagleTrustFundTransaction.trans_date <= exclusion_end_date
+                            )
+                        ).group_by(EagleTrustFundTransaction.base_donor_id).having(
+                            text('MAX(trans_date) >= :start AND MAX(trans_date) <= :end')
+                        ).params(start=exclusion_start_date, end=exclusion_end_date).all()
+                        recent_donors_to_exclude.update({row[0] for row in exclude_query2})
+                    except Exception as e:
+                        error_log['date_parsing_errors'].append(f"Transaction-based exclusion failed: {e}")
+
                 # Apply exclusion
                 query2_ids = historical_big_donor_ids - recent_donors_to_exclude
                 all_donor_ids.update(query2_ids)
                 query_stats['query2'] = len(query2_ids)
-                app.logger.info(f"Query 2 found: {len(query2_ids)} donors (after exclusions)")
-                
             except Exception as e:
                 app.logger.error(f"Error in Query 2: {e}")
                 error_log['data_inconsistencies'].append(f"Query 2 error: {e}")
-                query2_ids = set()
                 query_stats['query2'] = 0
-            
-            # QUERY 3: Enhanced house publications matching for lifetime donors
-            app.logger.info("Running Query 3: Lifetime donors with PS publications...")
+
+            # QUERY 3: Lifetime donors with PS publications
             try:
                 query3_results = session.query(EagleTrustFundDonor.base_donor_id).filter(
                     and_(
                         EagleTrustFundDonor.newsletter_status == 'A',
                         EagleTrustFundDonor.donor_status == 'L',
                         or_(
-                            # Exact match
                             EagleTrustFundDonor.house_publications == 'PS',
-                            # Contains PS with various formats
                             EagleTrustFundDonor.house_publications.like('%PS %'),
                             EagleTrustFundDonor.house_publications.like('PS -%'),
                             EagleTrustFundDonor.house_publications.like('%PS - THE PHYLLIS SCHLAFLY REPORT%'),
-                            # Handle edge cases
                             EagleTrustFundDonor.house_publications.like('%, PS -%'),
                             EagleTrustFundDonor.house_publications.like('%PS(%')
                         )
                     )
                 ).all()
-                
                 query3_ids = {row[0] for row in query3_results}
                 all_donor_ids.update(query3_ids)
                 query_stats['query3'] = len(query3_ids)
-                app.logger.info(f"Query 3 found: {len(query3_ids)} donors")
-                
             except Exception as e:
                 app.logger.error(f"Error in Query 3: {e}")
                 error_log['house_pub_format_issues'].append(f"Query 3 error: {e}")
-                query3_ids = set()
                 query_stats['query3'] = 0
-            
-            # QUERY 4: Enhanced house publications matching for exempt donors
-            app.logger.info("Running Query 4: Exempt donors with PS publications...")
+
+            # QUERY 4: Exempt donors with PS publications
             try:
                 query4_results = session.query(EagleTrustFundDonor.base_donor_id).filter(
                     and_(
                         EagleTrustFundDonor.newsletter_status == 'E',
                         or_(
-                            # Exact match
                             EagleTrustFundDonor.house_publications == 'PS',
-                            # Contains PS with various formats
                             EagleTrustFundDonor.house_publications.like('%PS %'),
                             EagleTrustFundDonor.house_publications.like('PS -%'),
                             EagleTrustFundDonor.house_publications.like('%PS - THE PHYLLIS SCHLAFLY REPORT%'),
-                            # Handle edge cases
                             EagleTrustFundDonor.house_publications.like('%, PS -%'),
                             EagleTrustFundDonor.house_publications.like('%PS(%')
                         )
                     )
                 ).all()
-                
                 query4_ids = {row[0] for row in query4_results}
                 all_donor_ids.update(query4_ids)
                 query_stats['query4'] = len(query4_ids)
-                app.logger.info(f"Query 4 found: {len(query4_ids)} donors")
-                
             except Exception as e:
                 app.logger.error(f"Error in Query 4: {e}")
                 error_log['house_pub_format_issues'].append(f"Query 4 error: {e}")
-                query4_ids = set()
                 query_stats['query4'] = 0
-            
-            app.logger.info(f"Total unique donors found: {len(all_donor_ids)}")
-            
-            # Data consistency validation (sample check)
-            consistency_issues = 0
-            sample_donors = list(all_donor_ids)[:50] if len(all_donor_ids) > 50 else list(all_donor_ids)
-            
-            for donor_id in sample_donors:
-                try:
-                    donor = session.query(EagleTrustFundDonor).filter(
-                        EagleTrustFundDonor.base_donor_id == donor_id
-                    ).first()
-                    
-                    if donor and donor.latest_date:
-                        try:
-                            latest_date_parsed = datetime.strptime(str(donor.latest_date), '%Y-%m-%d').date()
-                            if latest_date_parsed >= start_date:
-                                transaction_count = session.query(EagleTrustFundTransaction).filter(
-                                    and_(
-                                        EagleTrustFundTransaction.base_donor_id == donor_id,
-                                        EagleTrustFundTransaction.trans_date >= start_date
-                                    )
-                                ).count()
-                                
-                                if transaction_count == 0:
-                                    consistency_issues += 1
-                                    error_log['data_inconsistencies'].append(
-                                        f"Donor {donor_id}: latest_date {donor.latest_date} but no recent transactions"
-                                    )
-                        except ValueError as e:
-                            error_log['date_parsing_errors'].append(f"Donor {donor_id}: Invalid date format {donor.latest_date}")
-                            
-                except Exception as e:
-                    error_log['data_inconsistencies'].append(f"Validation error for donor {donor_id}: {e}")
-            
-            if consistency_issues > 0:
-                app.logger.warning(f"Found {consistency_issues} potential data consistency issues in sample")
-            
-            # Get final donor records
-            if not all_donor_ids:
-                flash("No donors found matching the specified criteria.", "warning")
-                return render_template("mailing_list_generator.html")
-            
-            # Filter for candidates only (mailing_list_status = FALSE)
-            final_donors = session.query(EagleTrustFundDonor).filter(
+
+            # Get final donor records (candidates only: mailing_list_status = FALSE)
+            final_donors_query = session.query(EagleTrustFundDonor).filter(
                 and_(
                     EagleTrustFundDonor.base_donor_id.in_(all_donor_ids),
-                    EagleTrustFundDonor.mailing_list_status == False
+                    EagleTrustFundDonor.mailing_list_status == False,
+                    or_(
+                        EagleTrustFundDonor.donor_status.is_(None),
+                        EagleTrustFundDonor.donor_status != 'D'
+                    )
                 )
-            ).order_by(EagleTrustFundDonor.last_name, EagleTrustFundDonor.first_name).all()
-            
-            # Log any errors that were encountered
-            if any(error_log.values()):
-                total_errors = sum(len(errors) for errors in error_log.values())
-                app.logger.warning(f"Mailing list generation completed with {total_errors} minor issues handled")
-                for error_type, errors in error_log.items():
-                    if errors:
-                        app.logger.warning(f"{error_type}: {len(errors)} issues")
-            
-            # Log final statistics
-            app.logger.info(f"Mailing list generation completed: Query 1: {query_stats.get('query1', 0)}, "
-                          f"Query 2: {query_stats.get('query2', 0)}, Query 3: {query_stats.get('query3', 0)}, "
-                          f"Query 4: {query_stats.get('query4', 0)}, Total unique: {len(all_donor_ids)}")
-            
-            # Prepare CSV data
-            headers = [
+            ).order_by(EagleTrustFundDonor.last_name, EagleTrustFundDonor.first_name)
+
+            final_donors = final_donors_query.all()
+
+            if not final_donors:
+                flash("No donors found matching the specified criteria.", "warning")
+                return render_template("mailing_list_generator.html")
+
+            # Prepare CSV data (used if action == 'download')
+            csv_headers = [
                 'Full Name',
                 'Donor ID',
-                'Salutation', 
+                'Salutation',
                 'Company/Address Line 1',
                 'Address Line 2',
                 'Address Line 3',
@@ -2294,23 +2239,25 @@ def mailing_list_candidates():
                 'ZIP Code',
                 'Latest Transaction Date'
             ]
-            
-            data = []
+
+            csv_data = []
             for donor in final_donors:
-                # Build full name
-                full_name_parts = []
-                if donor.name_prefix:
-                    full_name_parts.append(donor.name_prefix)
-                if donor.first_name:
-                    full_name_parts.append(donor.first_name)
-                if donor.last_name:
-                    full_name_parts.append(donor.last_name)
-                if donor.suffix:
-                    full_name_parts.append(donor.suffix)
-                
-                full_name = ' '.join(full_name_parts) if full_name_parts else donor.formatted_full_name or ''
-                
-                data.append([
+                # Build full name (fallback to formatted)
+                if donor.formatted_full_name and donor.formatted_full_name.strip():
+                    full_name = donor.formatted_full_name.strip()
+                else:
+                    full_name_parts = []
+                    if donor.name_prefix:
+                        full_name_parts.append(donor.name_prefix)
+                    if donor.first_name:
+                        full_name_parts.append(donor.first_name)
+                    if donor.last_name:
+                        full_name_parts.append(donor.last_name)
+                    if donor.suffix:
+                        full_name_parts.append(donor.suffix)
+                    full_name = ' '.join(full_name_parts)
+
+                csv_data.append([
                     full_name,
                     donor.base_donor_id,
                     donor.salutation_dear or '',
@@ -2322,27 +2269,54 @@ def mailing_list_candidates():
                     donor.zip_plus4 or '',
                     donor.latest_date or ''
                 ])
-            
-            # Generate CSV
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            filename = f"{query_title}_candidates_{timestamp}.csv"
-            
+
+            if action == 'download':
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                filename = f"{query_title}_candidates_{timestamp}.csv"
+                return generate_csv(csv_data, csv_headers, filename)
+
+            # Otherwise, show candidates on page with pagination
+            page = request.form.get('page', 1, type=int)
+            total_results = len(final_donors)
+            total_pages = ceil(total_results / ITEMS_PER_PAGE) if total_results else 1
+            start_index = (page - 1) * ITEMS_PER_PAGE
+            end_index = start_index + ITEMS_PER_PAGE
+            visible_donors = final_donors[start_index:end_index]
+
             # Show success message with statistics
-            flash(f"Mailing list candidates generated successfully! Found {len(final_donors)} candidates. "
-                  f"Query breakdown: Recent transactions: {query_stats.get('query1', 0)}, "
-                  f"Historical donors: {query_stats.get('query2', 0)}, "
-                  f"Lifetime + PS: {query_stats.get('query3', 0)}, "
-                  f"Exempt + PS: {query_stats.get('query4', 0)}.", "success")
-            
-            return generate_csv(data, headers, filename)
-            
+            flash(
+                f"Found {total_results} candidate(s). Recent: {query_stats.get('query1', 0)}, "
+                f"Historical: {query_stats.get('query2', 0)}, Lifetime+PS: {query_stats.get('query3', 0)}, "
+                f"Exempt+PS: {query_stats.get('query4', 0)}.",
+                "success"
+            )
+
+            # Preserve submitted fields for the template
+            submitted = {
+                'query_title': query_title,
+                'start_date': start_date_str,
+                'end_date': end_date_str,
+                'historical_start_date': historical_start_date_str,
+                'exclusion_start_date': exclusion_start_date_str,
+                'exclusion_end_date': exclusion_end_date_str,
+            }
+
+            return render_template(
+                "mailing_list_generator.html",
+                candidates=visible_donors,
+                total_results=total_results,
+                current_page=page,
+                total_pages=total_pages,
+                submitted=submitted
+            )
+
         except Exception as e:
             app.logger.error(f"Error generating mailing list: {e}")
             flash(f"Error generating mailing list: {e}", "error")
             return render_template("mailing_list_generator.html")
         finally:
             session.close()
-    
+
     # GET request - show form
     return render_template("mailing_list_generator.html")
 
