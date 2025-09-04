@@ -16,6 +16,12 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
 from datetime import timedelta
 
+#TODO: Fix filter issues for donor status and newsletter status.
+#TODO: Diagnose possibly browser-based issues with speed.
+#TODO: Fix bug where batches page will not allow submission if add rows value is over 50.
+#TODO: Add John version of batch summary.
+#TODO: fix exclusion criteria issues.
+
 # Load environment variables
 load_dotenv()
 
@@ -51,6 +57,48 @@ def parse_multi_values(value_string):
     if not value_string:
         return []
     return [v.strip() for v in value_string.split(',') if v.strip()]
+
+def parse_zip_codes(zip_string):
+    """Parse zip codes supporting both ranges (11111-13333) and individual codes (11111,22222)"""
+    if not zip_string:
+        return []
+    
+    zip_codes = []
+    parts = [part.strip() for part in zip_string.split(',') if part.strip()]
+    
+    for part in parts:
+        if '-' in part:
+            # Handle range (e.g., "11111-13333")
+            range_parts = part.split('-')
+            if len(range_parts) == 2:
+                try:
+                    start_zip = range_parts[0].strip()
+                    end_zip = range_parts[1].strip()
+                    
+                    # Validate that both are numeric and same length
+                    if start_zip.isdigit() and end_zip.isdigit() and len(start_zip) == len(end_zip):
+                        start_num = int(start_zip)
+                        end_num = int(end_zip)
+                        
+                        # Generate range of zip codes
+                        if start_num <= end_num:
+                            zip_length = len(start_zip)
+                            for zip_num in range(start_num, end_num + 1):
+                                zip_codes.append(str(zip_num).zfill(zip_length))
+                    else:
+                        # If not valid range format, treat as individual zip code
+                        zip_codes.append(part)
+                except (ValueError, IndexError):
+                    # If parsing fails, treat as individual zip code
+                    zip_codes.append(part)
+            else:
+                # If not valid range format, treat as individual zip code
+                zip_codes.append(part)
+        else:
+            # Individual zip code
+            zip_codes.append(part)
+    
+    return zip_codes
 
 def parse_date_range(date_str):
     """Parse date or date range string"""
@@ -147,9 +195,9 @@ def build_search_query(session, search_params):
             field_conditions.append(or_(*state_conditions))
             search_field_provided = True
     
-    # Handle multiple zip codes
+    # Handle multiple zip codes and zip code ranges
     if search_params.get('zip_code'):
-        zip_codes = parse_multi_values(search_params['zip_code'])
+        zip_codes = parse_zip_codes(search_params['zip_code'])
         if zip_codes:
             zip_conditions = [EagleTrustFundDonor.zip_plus4.ilike(f"%{zip_code}%") for zip_code in zip_codes]
             field_conditions.append(or_(*zip_conditions))
@@ -2237,7 +2285,8 @@ def mailing_list_candidates():
                 'City',
                 'State',
                 'ZIP Code',
-                'Latest Transaction Date'
+                'Latest Transaction Date',
+                'Latest Transaction Amount'
             ]
 
             csv_data = []
@@ -2267,7 +2316,8 @@ def mailing_list_candidates():
                     donor.city or '',
                     donor.state or '',
                     donor.zip_plus4 or '',
-                    donor.latest_date or ''
+                    donor.latest_date or '',
+                    format_currency(donor.latest_amount) if donor.latest_amount else ''
                 ])
 
             if action == 'download':
@@ -2354,7 +2404,8 @@ def generate_mailing_list():
                 'City',
                 'State',
                 'ZIP Code',
-                'Latest Transaction Date'
+                'Latest Transaction Date',
+                'Latest Transaction Amount'
             ]
             
             data = []
@@ -2391,7 +2442,8 @@ def generate_mailing_list():
                     donor.city or '',
                     donor.state or '',
                     donor.zip_plus4 or '',
-                    donor.latest_date or ''
+                    donor.latest_date or '',
+                    format_currency(donor.latest_amount) if donor.latest_amount else ''
                 ])
             
             # Generate CSV
@@ -2713,6 +2765,274 @@ def search_donor_by_name():
             })
         
         return jsonify(results)
+        
+    finally:
+        session.close()
+
+def generate_donor_profile_pdf(donor, gifted_to=None, gifted_by=None):
+    """Generate PDF profile for a single donor"""
+    from reportlab.lib.pagesizes import letter, portrait
+    from reportlab.platypus import Paragraph, Spacer
+    from reportlab.lib.units import inch
+    
+    buffer = io.BytesIO()
+    
+    # Use portrait letter size for donor profiles
+    pagesize = portrait(letter)
+    margin = 72  # 1 inch margins
+    
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=pagesize,
+        rightMargin=margin,
+        leftMargin=margin,
+        topMargin=margin,
+        bottomMargin=margin
+    )
+    
+    elements = []
+    styles = getSampleStyleSheet()
+    
+    # Title
+    title_style = styles['Heading1'].clone('DonorTitle')
+    title_style.fontSize = 18
+    title_style.spaceAfter = 20
+    
+    normal_style = styles['Normal'].clone('DonorNormal')
+    normal_style.fontSize = 10
+    normal_style.spaceAfter = 6
+    
+    heading_style = styles['Heading2'].clone('DonorHeading')
+    heading_style.fontSize = 14
+    heading_style.spaceAfter = 10
+    heading_style.spaceBefore = 15
+    
+    # Build donor name for title
+    donor_name = donor.formatted_full_name
+    if not donor_name:
+        name_parts = []
+        if donor.name_prefix:
+            name_parts.append(donor.name_prefix)
+        if donor.first_name:
+            name_parts.append(donor.first_name)
+        if donor.last_name:
+            name_parts.append(donor.last_name)
+        if donor.suffix:
+            name_parts.append(donor.suffix)
+        donor_name = ' '.join(name_parts) if name_parts else f"Donor #{donor.base_donor_id}"
+    
+    elements.append(Paragraph(f"Donor Profile: {donor_name}", title_style))
+    elements.append(Paragraph(f"Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", normal_style))
+    elements.append(Spacer(1, 12))
+    
+    # Basic Information Section
+    elements.append(Paragraph("Basic Information", heading_style))
+    
+    basic_info = [
+        ("Donor ID", str(donor.base_donor_id)),
+        ("Legacy Donor ID", str(donor.old_donor_id) if donor.old_donor_id else None),
+        ("Alternate ID", donor.alternate_id),
+        ("Name", donor_name),
+        ("Date Added", donor.date_added_to_database),
+    ]
+    
+    # Secondary name if exists
+    secondary_parts = []
+    if donor.secondary_title and donor.secondary_title.lower() != 'nan':
+        secondary_parts.append(donor.secondary_title)
+    if donor.secondary_first_name and donor.secondary_first_name.lower() != 'nan':
+        secondary_parts.append(donor.secondary_first_name)
+    if donor.secondary_last_name and donor.secondary_last_name.lower() != 'nan':
+        secondary_parts.append(donor.secondary_last_name)
+    if donor.secondary_suffix and donor.secondary_suffix.lower() != 'nan':
+        secondary_parts.append(donor.secondary_suffix)
+    
+    if secondary_parts:
+        basic_info.append(("Secondary Name", ' '.join(secondary_parts)))
+    
+    if donor.salutation_dear:
+        basic_info.append(("Salutation", donor.salutation_dear))
+    
+    for label, value in basic_info:
+        if value:
+            elements.append(Paragraph(f"<b>{label}:</b> {value}", normal_style))
+    
+    # Contact & Address Section
+    elements.append(Paragraph("Contact & Address", heading_style))
+    
+    # Build address
+    address_parts = []
+    if donor.address_1_company:
+        address_parts.append(donor.address_1_company)
+    if donor.address_2_secondary:
+        address_parts.append(donor.address_2_secondary)
+    if donor.address_3_primary:
+        address_parts.append(donor.address_3_primary)
+    
+    city_state_zip = []
+    if donor.city:
+        city_state_zip.append(donor.city)
+    if donor.state:
+        city_state_zip.append(donor.state)
+    if donor.zip_plus4:
+        city_state_zip.append(donor.zip_plus4)
+    
+    if city_state_zip:
+        if donor.city and donor.state:
+            address_parts.append(f"{donor.city}, {donor.state} {donor.zip_plus4 or ''}".strip())
+        else:
+            address_parts.append(' '.join(city_state_zip))
+    
+    if address_parts:
+        elements.append(Paragraph(f"<b>Address:</b><br/>{' '.join(['&nbsp;'] * 4)}{('<br/>' + ' '.join(['&nbsp;'] * 4)).join(address_parts)}", normal_style))
+    
+    contact_info = [
+        ("Country", donor.country),
+        ("Email", donor.email_address),
+        ("Phone", donor.phone),
+        ("Work Phone", donor.work_phone),
+        ("Cell Phone", donor.cell_phone),
+        ("Twitter", donor.twitter),
+        ("House Publications", donor.house_publications),
+    ]
+    
+    for label, value in contact_info:
+        if value:
+            elements.append(Paragraph(f"<b>{label}:</b> {value}", normal_style))
+    
+    # Status Information Section
+    elements.append(Paragraph("Status Information", heading_style))
+    
+    status_info = [
+        ("Donor Status", donor.donor_status_desc or donor.donor_status or "Not specified"),
+        ("Newsletter Status", donor.newsletter_status_desc or donor.newsletter_status or "Not specified"),
+        ("Expiration Date", donor.expiration_date or "Not set"),
+        ("Mailing List Status", "✓ Active" if donor.mailing_list_status else "✗ Inactive"),
+        ("Mailing Until Date", donor.mailing_until_date or "Not set"),
+    ]
+    
+    for label, value in status_info:
+        elements.append(Paragraph(f"<b>{label}:</b> {value}", normal_style))
+    
+    # Gift Subscriptions Section
+    elements.append(Paragraph("Gift Subscriptions", heading_style))
+    
+    if gifted_by:
+        gifted_by_name = gifted_by.formatted_full_name or f"{gifted_by.first_name or ''} {gifted_by.last_name or ''}".strip()
+        elements.append(Paragraph(f"<b>Subscription Gifted By:</b> #{gifted_by.base_donor_id} - {gifted_by_name}", normal_style))
+    
+    if gifted_to:
+        gifted_to_name = gifted_to.formatted_full_name or f"{gifted_to.first_name or ''} {gifted_to.last_name or ''}".strip()
+        elements.append(Paragraph(f"<b>Has Gifted To:</b> #{gifted_to.base_donor_id} - {gifted_to_name}", normal_style))
+    
+    if not gifted_by and not gifted_to:
+        elements.append(Paragraph("No active gift subscriptions", normal_style))
+    
+    # Donation Summary Section
+    elements.append(Paragraph("Donation Summary", heading_style))
+    
+    donation_summary = [
+        ("Total Donated", format_currency(donor.total_dollar_amount)),
+        ("Total Responses", f"{donor.total_responses_includes_zero or 0} ({donor.total_responses_non_zero or 0} non-zero)"),
+        ("Latest Donation", f"{format_currency(donor.latest_amount)} on {donor.latest_date}" if donor.latest_amount else "None recorded"),
+        ("Largest Donation", f"{format_currency(donor.largest_amount)} on {donor.largest_date}" if donor.largest_amount else "None recorded"),
+        ("First Donation", f"{format_currency(donor.inception_amount)} on {donor.inception_date}" if donor.inception_amount else "None recorded"),
+    ]
+    
+    for label, value in donation_summary:
+        elements.append(Paragraph(f"<b>{label}:</b> {value}", normal_style))
+    
+    # Transaction History Section
+    if donor.transactions:
+        elements.append(Paragraph(f"Transaction History ({len(donor.transactions)} transactions)", heading_style))
+        
+        # Create transaction table
+        transaction_headers = ['Date', 'Amount', 'Payment Type', 'Payment Method', 'Batch #', 'Job Description']
+        transaction_data = [transaction_headers]
+        
+        for tx in donor.transactions:
+            job_description = tx.bluebook_job_description or ""
+            if (tx.trans_date.year > 2018 and 
+                tx.payment_type == "E" and 
+                tx.bluebook_job_description == "DUES OR EAGLES"):
+                job_description = "PS EAGLES"
+            
+            transaction_data.append([
+                tx.trans_date.strftime("%Y-%m-%d"),
+                format_currency(tx.trans_amount),
+                tx.payment_type or "",
+                tx.payment_method or "",
+                tx.update_batch_num or "",
+                job_description
+            ])
+        
+        # Create table with dynamic column widths
+        col_widths = [1*inch, 1*inch, 0.8*inch, 1*inch, 0.8*inch, 2*inch]
+        
+        transaction_table = Table(transaction_data, colWidths=col_widths, repeatRows=1)
+        transaction_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+            ('TOPPADDING', (0, 0), (-1, 0), 8),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ('TOPPADDING', (0, 1), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 4),
+            ('LEFTPADDING', (0, 0), (-1, -1), 4),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.lightgrey]),
+        ]))
+        
+        elements.append(transaction_table)
+    else:
+        elements.append(Paragraph("Transaction History", heading_style))
+        elements.append(Paragraph("No transactions found for this donor.", normal_style))
+    
+    # Build PDF
+    doc.build(elements)
+    buffer.seek(0)
+    
+    # Generate filename
+    filename = f"donor_profile_{donor.base_donor_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+    
+    return send_file(
+        buffer,
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=filename
+    )
+
+@app.route("/donor/<int:donor_id>/download_pdf")
+def download_donor_profile_pdf(donor_id):
+    """Generate and download PDF of donor profile"""
+    session = Session()
+    try:
+        donor = (session.query(EagleTrustFundDonor)
+                      .options(joinedload(EagleTrustFundDonor.transactions))
+                      .filter_by(base_donor_id=donor_id)
+                      .first())
+        
+        if donor is None:
+            abort(404, f"Donor #{donor_id} not found")
+
+        # Get gift information
+        gifted_to = None
+        if donor.gifted_to_donor_id:
+            gifted_to = session.query(EagleTrustFundDonor).filter_by(base_donor_id=donor.gifted_to_donor_id).first()
+        
+        # Get who gifted to this donor
+        gifted_by = session.query(EagleTrustFundDonor).filter_by(gifted_to_donor_id=donor_id).first()
+
+        # Generate PDF
+        return generate_donor_profile_pdf(donor, gifted_to, gifted_by)
         
     finally:
         session.close()

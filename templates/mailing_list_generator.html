@@ -250,8 +250,8 @@
                     <td style="padding:8px; border:1px solid #ddd;">{{ d.state or '' }}</td>
                     <td style="padding:8px; border:1px solid #ddd;">{{ d.latest_date or '' }}</td>
                     <td style="padding:8px; border:1px solid #ddd;">
-                        <button class="action-button" style="background:#28a745;" onclick="toggleMailingList(event, {{ d.base_donor_id }}, true)">Add</button>
-                        <button class="action-button" style="background:#6c757d; display:none;" onclick="toggleMailingList(event, {{ d.base_donor_id }}, false)">Undo</button>
+                        <button class="action-button" style="background:#28a745;" onclick="toggleMailingList(event, '{{ d.base_donor_id }}', true)">Add</button>
+                        <button class="action-button" style="background:#6c757d; display:none;" onclick="toggleMailingList(event, '{{ d.base_donor_id }}', false)">Undo</button>
                         <span class="row-status" style="margin-left:8px; color:#555;"></span>
                     </td>
                 </tr>

@@ -262,8 +262,8 @@
 
         <div class="form-group">
             <label for="zip_code">ZIP Code:</label>
-            <input type="text" id="zip_code" name="zip_code" value="{{ request.form.get('zip_code', '') }}" placeholder="63101, 90210, 10001 (comma-separated)">
-            <small style="color: #666; display: block; margin-top: 2px;">Supports multiple ZIP codes separated by commas</small>
+            <input type="text" id="zip_code" name="zip_code" value="{{ request.form.get('zip_code', '') }}" placeholder="63101-63199, 90210, 10001-10005">
+            <small style="color: #666; display: block; margin-top: 2px;">Supports ranges (63101-63199), individual codes (90210), or both separated by commas</small>
         </div>
 
         <div class="form-group">
@@ -355,7 +355,8 @@
     <div class="search-tips">
         <h3>Search Tips:</h3>
         <ul>
-            <li><strong>Multiple Values:</strong> Use commas to search multiple values in the same field (e.g., "MO, IL, CA" for states or "63101, 90210" for ZIP codes)</li>
+            <li><strong>Multiple Values:</strong> Use commas to search multiple values in the same field (e.g., "MO, IL, CA" for states)</li>
+            <li><strong>ZIP Code Ranges:</strong> Use ranges like "63101-63199" or combine with individual codes like "63101-63199, 90210, 10001-10005"</li>
             <li><strong>Date Ranges:</strong> Use "YYYY-MM-DD to YYYY-MM-DD" format or single dates (e.g., "2023-01-01 to 2023-12-31")</li>
             <li><strong>Amount Ranges:</strong> Use "100 to 5000" for ranges, or single amounts (e.g., "1000")</li>
             <li><strong>Status Filtering:</strong> Search by donor status alone (e.g., "A" for active donors only)</li>

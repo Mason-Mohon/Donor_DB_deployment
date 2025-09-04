@@ -281,7 +281,7 @@
 </head>
 <body>
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-        <h1 style="margin: 0;">Donor Profile: {{ donor.formatted_full_name or (donor.first_name + ' ' + donor.last_name) or 'Donor #' + donor.base_donor_id|string }}</h1>
+        <h1 style="margin: 0;">Donor Profile: {{ donor.formatted_full_name or ((donor.first_name or '') + ' ' + (donor.last_name or '')).strip() or 'Donor #' + donor.base_donor_id|string }}</h1>
         <a href="{{ url_for('home') }}" class="back-to-search-prominent">&larr; Back to Search</a>
     </div>
 
@@ -296,6 +296,7 @@
     <div class="profile-actions">
         <a href="{{ url_for('edit_donor', donor_id=donor.base_donor_id) }}" class="action-button">Edit Donor</a>
         <a href="{{ url_for('add_transaction', donor_id=donor.base_donor_id) }}" class="action-button add">Add Transaction</a>
+        <a href="{{ url_for('download_donor_profile_pdf', donor_id=donor.base_donor_id) }}" class="action-button" style="background: #dc3545;">📄 Download PDF</a>
     </div>
 
     <div class="main-content">
@@ -404,6 +405,12 @@
                 <div class="field-group">
                     <span class="field-label">Twitter:</span>
                     <span class="field-value">{{ donor.twitter }}</span>
+                </div>
+            {% endif %}
+            {% if donor.house_publications %}
+                <div class="field-group">
+                    <span class="field-label">House Publications:</span>
+                    <span class="field-value">{{ donor.house_publications }}</span>
                 </div>
             {% endif %}
             
