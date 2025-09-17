@@ -16,11 +16,21 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
 from datetime import timedelta
 
-#TODO: Fix filter issues for donor status and newsletter status.
-#TODO: Diagnose possibly browser-based issues with speed.
+#DONE: Fix filter issues for donor status and newsletter status.
 #TODO: Fix bug where batches page will not allow submission if add rows value is over 50.
-#TODO: Add John version of batch summary.
 #TODO: fix exclusion criteria issues.
+#TODO: Make the transaction report downloads show the total amount for an individual donor if they made payments to multiple accounts.
+
+# To-do's from John
+# Majority of donations come in in response to appeals sent with PSR.
+# Take one date and look at the generated report of transactions for that day.
+#TODO: prove reporduction of donor report from a previous date.
+# Goal - assemble papers and satisfy ourselves that it's all reliably and accurately recorded to the point that we could eventually discard some of that paper.
+# Big picture goal is to make sure that ALL FINANCIAL RECORDS in PS history are properly archived, including all scattered papers.
+# "This is not our highest priority."
+# "We can let it slide for another month."
+# "My immediate goal is to test the software that has been written on an older year."
+# "The digitizing and archiving that we have done has ignored the financial stuff."
 
 # Load environment variables
 load_dotenv()
@@ -151,11 +161,17 @@ def build_search_query(session, search_params):
     # Add filter conditions first
     if search_params.get('exclude_deceased') == 'true':
         filter_conditions.append(
-            not_(EagleTrustFundDonor.newsletter_status_desc.ilike("DECEASED OR UNDELIVERABLE"))
+            or_(
+                EagleTrustFundDonor.newsletter_status_desc.is_(None), # Now fixed to include null values.
+                not_(EagleTrustFundDonor.newsletter_status_desc.ilike("DECEASED OR UNDELIVERABLE"))
+            )
         )
     if search_params.get('exclude_non_donors') == 'true':
         filter_conditions.append(
-            not_(EagleTrustFundDonor.donor_status_desc.ilike("NON DONOR (DO NOT SOLICIT)"))
+            or_(
+                EagleTrustFundDonor.donor_status_desc.is_(None),
+                not_(EagleTrustFundDonor.donor_status_desc.ilike("NON DONOR (DO NOT SOLICIT)"))
+            )
         )
 
     # Apply filter conditions
@@ -1478,7 +1494,10 @@ def generate_pdf(data, headers, filename, title, payment_type_totals=None, batch
     
     # Add batch metadata if provided
     if batch_metadata:
-        elements.append(Paragraph(f"<strong>Batch Number:</strong> {batch_metadata['batch_number']}", normal_style))
+        if batch_metadata['batch_number']:
+            elements.append(Paragraph(f"<strong>Batch Number:</strong> {batch_metadata['batch_number']}", normal_style))
+        else:
+            elements.append(Paragraph(f"<strong>Transaction Date Range:</strong> {batch_metadata['date']}", normal_style))
         elements.append(Paragraph(f"<strong>Transaction Date:</strong> {batch_metadata['date']}", normal_style))
         elements.append(Paragraph(f"<strong>Payment Method:</strong> {batch_metadata['payment_method']}", normal_style))
         elements.append(Paragraph("<br/>", normal_style))  # Add some space
@@ -1534,8 +1553,56 @@ def generate_pdf(data, headers, filename, title, payment_type_totals=None, batch
         elements.append(summary_table)
         elements.append(Paragraph("<br/>", normal_style))  # Add space before main table
     
+    # Process data to add donor totals for batch format PDFs
+    processed_data = data
+    if is_batch_pdf:
+        # Calculate donor totals for multiple payments
+        donor_totals = {}
+        donor_payment_counts = {}
+        
+        # First pass: calculate totals and counts for each donor
+        for row in data:
+            donor_id = row[0]  # Donor ID is first column
+            amount_str = row[3]  # Amount is fourth column
+            
+            # Parse amount - remove currency formatting
+            try:
+                # Remove currency symbol and commas, then convert to Decimal
+                clean_amount = amount_str.replace('$', '').replace(',', '')
+                amount = Decimal(clean_amount)
+            except (ValueError, TypeError):
+                amount = Decimal('0')
+            
+            if donor_id not in donor_totals:
+                donor_totals[donor_id] = Decimal('0')
+                donor_payment_counts[donor_id] = 0
+            
+            donor_totals[donor_id] += amount
+            donor_payment_counts[donor_id] += 1
+        
+        # Second pass: modify donor names to include totals for multiple payments
+        processed_data = []
+        donor_total_shown = set()  # Track which donors have had their total shown
+        
+        for row in data:
+            donor_id = row[0]
+            donor_name = row[1]
+            payment_type = row[2]
+            amount = row[3]
+            
+            # If donor has multiple payments and we haven't shown their total yet
+            if (donor_payment_counts[donor_id] > 1 and 
+                donor_id not in donor_total_shown):
+                # Add total to donor name unobtrusively
+                donor_name_with_total = f"{donor_name} (Total: {format_currency(donor_totals[donor_id])})"
+                donor_total_shown.add(donor_id)
+            else:
+                donor_name_with_total = donor_name
+            
+            processed_data.append([donor_id, donor_name_with_total, payment_type, amount])
+    
     # Create table with dynamic column widths
-    table_data = [headers] + data
+    table_data = [headers] + processed_data
     
     # Calculate available width
     page_width = pagesize[0] - (2 * margin)
@@ -1771,21 +1838,36 @@ def download_transaction_results(format):
         
         transactions = query.order_by(EagleTrustFundTransaction.trans_date.desc()).all()
         
-        # Calculate payment type totals if searching by batch
+        # Calculate payment type totals if searching by batch or single day
         payment_type_totals = None
         batch_metadata = None
+        
+        # Check if this is a batch search (by batch number) or single-day search (same start/end date)
         is_batch_search = bool(search_params.get('update_batch_num'))
-        if is_batch_search:
+        is_single_day_search = (search_params.get('start_date') and 
+                               search_params.get('end_date') and 
+                               search_params.get('start_date') == search_params.get('end_date'))
+        
+        is_batch_format = is_batch_search or is_single_day_search
+        
+        if is_batch_format:
             payment_type_totals = {}
             
             # Collect batch metadata from first transaction
             if transactions:
                 first_trans = transactions[0]
-                batch_metadata = {
-                    'batch_number': search_params.get('update_batch_num'),
-                    'date': first_trans.trans_date.strftime('%Y-%m-%d'),
-                    'payment_method': first_trans.payment_method or 'Not specified'
-                }
+                if is_batch_search:
+                    batch_metadata = {
+                        'batch_number': search_params.get('update_batch_num'),
+                        'date': first_trans.trans_date.strftime('%Y-%m-%d'),
+                        'payment_method': first_trans.payment_method or 'Not specified'
+                    }
+                else:  # is_single_day_search
+                    batch_metadata = {
+                        'batch_number': None,  # No batch number for single-day searches
+                        'date': search_params.get('start_date'),
+                        'payment_method': 'Various'  # Multiple payment methods possible in a day
+                    }
             
             for trans in transactions:
                 payment_type = trans.payment_type or 'Unknown'
@@ -1820,9 +1902,9 @@ def download_transaction_results(format):
                     else:
                         payment_type_totals[payment_type]['description'] = trans.bluebook_job_description or 'Unknown'
         
-        # Define columns based on whether it's a batch search
-        if is_batch_search:
-            # For batch PDFs: only Donor ID, Donor Name, Type, Amount
+        # Define columns based on whether it's a batch format (batch search or single-day search)
+        if is_batch_format:
+            # For batch PDFs and single-day PDFs: only Donor ID, Donor Name, Type, Amount
             headers = ['Donor ID', 'Donor Name', 'Type', 'Amount']
         else:
             # For regular searches: full columns
@@ -1831,7 +1913,7 @@ def download_transaction_results(format):
         # Prepare transaction data rows
         transaction_data = []
         for trans in transactions:
-            if is_batch_search:
+            if is_batch_format:
                 # Simplified batch format
                 transaction_data.append([
                     str(trans.donor.base_donor_id),
@@ -1865,6 +1947,8 @@ def download_transaction_results(format):
             title = 'Transaction Search Results'
             if is_batch_search and search_params.get('update_batch_num'):
                 title = f'Batch {search_params.get("update_batch_num")} - Transaction Results'
+            elif is_single_day_search:
+                title = f'Batch for {search_params.get("start_date")} - Transaction Results'
             return generate_pdf(transaction_data, headers, f'transaction_results_{timestamp}.pdf', title, payment_type_totals, batch_metadata)
         else:
             abort(400, "Invalid format specified")
