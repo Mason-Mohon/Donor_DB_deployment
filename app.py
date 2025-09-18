@@ -18,13 +18,13 @@ from datetime import timedelta
 
 #DONE: Fix filter issues for donor status and newsletter status.
 #TODO: Fix bug where batches page will not allow submission if add rows value is over 50.
-#TODO: fix exclusion criteria issues.
-#TODO: Make the transaction report downloads show the total amount for an individual donor if they made payments to multiple accounts.
+#DONE: Make the transaction report downloads show the total amount for an individual donor if they made payments to multiple accounts.
 
 # To-do's from John
 # Majority of donations come in in response to appeals sent with PSR.
 # Take one date and look at the generated report of transactions for that day.
-#TODO: prove reporduction of donor report from a previous date.
+#DONE: prove reporduction of donor report from a previous date.
+
 # Goal - assemble papers and satisfy ourselves that it's all reliably and accurately recorded to the point that we could eventually discard some of that paper.
 # Big picture goal is to make sure that ALL FINANCIAL RECORDS in PS history are properly archived, including all scattered papers.
 # "This is not our highest priority."
@@ -1510,7 +1510,7 @@ def generate_pdf(data, headers, filename, title, payment_type_totals=None, batch
         elements.append(Paragraph("Batch Summary by Payment Type:", title_style))
         
         # Create summary table
-        summary_data = [['Payment Type', 'Description', 'Transactions', 'Total Amount']]
+        summary_data = [['Pmnt Type', 'Description', 'Transactions', 'Total Amount']]
         grand_total = Decimal('0')
         grand_count = 0
         
