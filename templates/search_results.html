@@ -195,6 +195,43 @@
         .download-button.pdf:hover {
             background-color: #c82333;
         }
+        .download-button:disabled {
+            background-color: #6c757d !important;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+        .download-button:disabled:hover {
+            background-color: #6c757d !important;
+        }
+        .disabled-indicator {
+            font-size: 0.8em;
+            font-weight: normal;
+            color: #ffc107;
+        }
+        .download-warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .download-warning.large-result-set {
+            background: #f8d7da;
+            border-color: #f5c6cb;
+        }
+        .download-warning p {
+            margin: 8px 0;
+        }
+        .download-warning ul {
+            margin: 8px 0;
+            padding-left: 20px;
+        }
+        .cached-indicator {
+            font-size: 0.8em;
+            color: #28a745;
+            font-weight: normal;
+            margin-left: 10px;
+        }
         .column-selector {
             display: none;
             background: #fff;
@@ -327,18 +364,42 @@
                 <li><em>Excluding non-donors (do not solicit)</em></li>
             {% endif %}
         </ul>
-        <p><strong>Found:</strong> {{ total_results }} donor(s)</p>
+        <p><strong>Found:</strong> {{ total_results }} donor(s) <span class="cached-indicator">📋 Results cached for download</span></p>
         {% if total_results > 50 %}
             <p><em>Showing {{ (current_page - 1) * 50 + 1 }} to {{ [current_page * 50, total_results]|min }} of {{ total_results }} results</em></p>
         {% endif %}
 
         {% if donors %}
+            <!-- Download size warnings -->
+            {% if total_results > 5000 %}
+                <div class="download-warning large-result-set">
+                    <strong>⚠️ Large Result Set Warning:</strong>
+                    <p>This search returned {{ "{:,}".format(total_results) }} donors. Downloads are limited to:</p>
+                    <ul>
+                        <li><strong>CSV:</strong> Maximum 10,000 donors</li>
+                        <li><strong>PDF:</strong> Maximum 5,000 donors</li>
+                    </ul>
+                    {% if total_results > 10000 %}
+                        <p><em>Consider refining your search criteria to reduce the number of results.</em></p>
+                    {% endif %}
+                </div>
+            {% elif total_results > 1000 %}
+                <div class="download-warning medium-result-set">
+                    <strong>📊 Large Download Notice:</strong>
+                    <p>This will download {{ "{:,}".format(total_results) }} donors. Large downloads may take a few moments to process.</p>
+                </div>
+            {% endif %}
+
             <div class="download-buttons">
-                <button type="button" class="download-button csv" onclick="showColumnSelector('csv')">
+                <button type="button" class="download-button csv" onclick="showColumnSelector('csv')"
+                        {% if total_results > 10000 %}disabled title="Result set too large for CSV download (limit: 10,000)"{% endif %}>
                     Download as CSV
+                    {% if total_results > 10000 %}<span class="disabled-indicator">- Limit Exceeded</span>{% endif %}
                 </button>
-                <button type="button" class="download-button pdf" onclick="showColumnSelector('pdf')">
+                <button type="button" class="download-button pdf" onclick="showColumnSelector('pdf')"
+                        {% if total_results > 5000 %}disabled title="Result set too large for PDF download (limit: 5,000)"{% endif %}>
                     Download as PDF
+                    {% if total_results > 5000 %}<span class="disabled-indicator">- Limit Exceeded</span>{% endif %}
                 </button>
             </div>
 

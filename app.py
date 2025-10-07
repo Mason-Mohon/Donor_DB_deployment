@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, abort, flash, send_file, jsonify
+from flask import Flask, render_template, request, redirect, url_for, abort, flash, send_file, jsonify, session
 from sqlalchemy import create_engine, or_, and_, not_
 from sqlalchemy.orm import sessionmaker, joinedload
 from models import Base, EagleTrustFundDonor, EagleTrustFundTransaction
@@ -9,6 +9,7 @@ from decimal import Decimal, InvalidOperation
 from math import ceil
 import csv
 import io
+import time
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import landscape, letter
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
@@ -57,10 +58,35 @@ DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 # Constants for pagination
 ITEMS_PER_PAGE = 50
 
+# Constants for download limits and processing
+MAX_DOWNLOAD_RESULTS = 10000  # Maximum number of donors for downloads
+MAX_PDF_RESULTS = 5000       # Maximum number of donors for PDF generation
+DOWNLOAD_CHUNK_SIZE = 1000   # Process downloads in chunks to avoid memory issues
+
 # SQLAlchemy engine and session factory
 engine = create_engine(DATABASE_URL)
 Base.metadata.bind = engine
 Session = sessionmaker(bind=engine)
+
+def clear_search_session():
+    """Clear any existing search results from session to start fresh"""
+    if 'last_search_results' in session:
+        del session['last_search_results']
+
+def is_search_session_valid():
+    """Check if the current search session is valid and not expired"""
+    if 'last_search_results' not in session:
+        return False
+    
+    cached_results = session['last_search_results']
+    
+    # Check if cached results are still valid (within 30 minutes)
+    if time.time() - cached_results['timestamp'] > 1800:  # 30 minutes
+        # Clean up expired session
+        del session['last_search_results']
+        return False
+    
+    return True
 
 def parse_multi_values(value_string):
     """Parse comma-separated values and return list"""
@@ -320,6 +346,9 @@ def build_search_query(session, search_params):
 @app.route("/", methods=["GET", "POST"])
 def home():
     if request.method == "POST":
+        # Clear any existing search session data to start fresh
+        clear_search_session()
+        
         # Get all search parameters
         search_params = {
             'donor_id': request.form.get("donor_id", "").strip(),
@@ -359,12 +388,12 @@ def home():
             except ValueError:
                 abort(400, "Invalid donor ID")
 
-        # Create session
-        session = Session()
+        # Create database session
+        db_session = Session()
         
         try:
             # Build and execute search query
-            query, search_field_provided = build_search_query(session, search_params)
+            query, search_field_provided = build_search_query(db_session, search_params)
             
             # If no search parameters provided (excluding filter options)
             if not search_field_provided:
@@ -378,13 +407,22 @@ def home():
             total_results = query.count()
             total_pages = ceil(total_results / ITEMS_PER_PAGE)
             
-            # Apply pagination
+            # Store ALL search result IDs in session for downloads (efficient ID-only query)
+            all_donor_ids = [row[0] for row in query.with_entities(EagleTrustFundDonor.base_donor_id).all()]
+            session['last_search_results'] = {
+                'donor_ids': all_donor_ids,
+                'timestamp': time.time(),
+                'count': len(all_donor_ids),
+                'search_params': search_params  # Store for verification
+            }
+            
+            # Apply pagination for display
             results = query.offset((page - 1) * ITEMS_PER_PAGE).limit(ITEMS_PER_PAGE).all()
 
             # If only one result found, redirect to that donor's page
             if total_results == 1:
                 donor_id = results[0].base_donor_id
-                session.close()
+                db_session.close()
                 return redirect(url_for("donor", donor_id=donor_id))
             
             # If multiple results, show results page
@@ -398,7 +436,7 @@ def home():
             )
 
         finally:
-            session.close()
+            db_session.close()
 
     # Pass default filter values for GET request
     default_search_params = {
@@ -422,12 +460,12 @@ def refine_search():
     if field and value:
         search_params[field] = value
 
-    # Create session
-    session = Session()
+    # Create database session
+    db_session = Session()
     
     try:
         # Build and execute search query
-        query, search_field_provided = build_search_query(session, search_params)
+        query, search_field_provided = build_search_query(db_session, search_params)
         
         # Get page number from request
         page = request.form.get('page', 1, type=int)
@@ -435,6 +473,15 @@ def refine_search():
         # Count total results
         total_results = query.count()
         total_pages = ceil(total_results / ITEMS_PER_PAGE)
+        
+        # Store ALL search result IDs in session for downloads (efficient ID-only query)
+        all_donor_ids = [row[0] for row in query.with_entities(EagleTrustFundDonor.base_donor_id).all()]
+        session['last_search_results'] = {
+            'donor_ids': all_donor_ids,
+            'timestamp': time.time(),
+            'count': len(all_donor_ids),
+            'search_params': search_params  # Store for verification
+        }
         
         # Apply pagination
         results = query.offset((page - 1) * ITEMS_PER_PAGE).limit(ITEMS_PER_PAGE).all()
@@ -448,7 +495,7 @@ def refine_search():
             total_results=total_results
         )
     finally:
-        session.close()
+        db_session.close()
 
 @app.route("/toggle_column", methods=["POST"])
 def toggle_column():
@@ -472,12 +519,12 @@ def toggle_column():
     # Update search params with new hidden columns
     search_params['hidden_columns'] = ','.join(filter(None, hidden_columns))
 
-    # Create session
-    session = Session()
+    # Create database session
+    db_session = Session()
     
     try:
         # Build and execute search query
-        query, search_field_provided = build_search_query(session, search_params)
+        query, search_field_provided = build_search_query(db_session, search_params)
         
         # Get page number from request
         page = request.form.get('page', 1, type=int)
@@ -485,6 +532,15 @@ def toggle_column():
         # Count total results
         total_results = query.count()
         total_pages = ceil(total_results / ITEMS_PER_PAGE)
+        
+        # Store ALL search result IDs in session for downloads (efficient ID-only query)
+        all_donor_ids = [row[0] for row in query.with_entities(EagleTrustFundDonor.base_donor_id).all()]
+        session['last_search_results'] = {
+            'donor_ids': all_donor_ids,
+            'timestamp': time.time(),
+            'count': len(all_donor_ids),
+            'search_params': search_params  # Store for verification
+        }
         
         # Apply pagination
         results = query.offset((page - 1) * ITEMS_PER_PAGE).limit(ITEMS_PER_PAGE).all()
@@ -498,7 +554,7 @@ def toggle_column():
             total_results=total_results
         )
     finally:
-        session.close()
+        db_session.close()
 
 @app.route("/donor/<int:donor_id>")
 def donor(donor_id):
@@ -1393,6 +1449,143 @@ def format_currency(amount):
         return "$0.00"
     return f"${amount:,.2f}"
 
+def generate_csv_chunked(query, visible_columns, headers, filename, session):
+    """Generate CSV file using chunked processing to avoid memory issues"""
+    from flask import Response
+    
+    def generate_csv_data():
+        """Generator function that yields CSV data in chunks"""
+        # Import CSV writer here to avoid issues with generator scope
+        import csv
+        import io
+        
+        # Write headers first
+        output = io.StringIO()
+        writer = csv.writer(output, quoting=csv.QUOTE_MINIMAL)
+        writer.writerow(headers)
+        output.seek(0)
+        data = output.getvalue()
+        output.close()
+        yield data
+        
+        # Process donors in chunks to avoid loading all into memory
+        offset = 0
+        while True:
+            # Get a chunk of donors
+            donors_chunk = query.offset(offset).limit(DOWNLOAD_CHUNK_SIZE).all()
+            
+            if not donors_chunk:
+                break  # No more data
+            
+            # Process this chunk
+            output = io.StringIO()
+            writer = csv.writer(output, quoting=csv.QUOTE_MINIMAL)
+            
+            for donor in donors_chunk:
+                row = []
+                for col_id, _ in visible_columns:
+                    value = getattr(donor, col_id, None)
+                    if col_id in ['total_dollar_amount', 'latest_amount', 'largest_amount', 'inception_amount']:
+                        value = format_currency(value)
+                    elif value is None:
+                        value = ''
+                    
+                    # Clean up any problematic characters
+                    if value:
+                        cell_str = str(value).replace('\n', ' ').replace('\r', ' ')
+                        row.append(cell_str)
+                    else:
+                        row.append('')
+                
+                writer.writerow(row)
+            
+            # Yield this chunk's data
+            output.seek(0)
+            data = output.getvalue()
+            output.close()
+            yield data
+            
+            offset += DOWNLOAD_CHUNK_SIZE
+            
+            # Optional: Small delay to prevent overwhelming the database
+            # time.sleep(0.01)  # Uncomment if needed
+    
+    # Return streaming response
+    return Response(
+        generate_csv_data(),
+        mimetype='text/csv',
+        headers={
+            'Content-Disposition': f'attachment; filename={filename}',
+            'Content-Type': 'text/csv; charset=utf-8'
+        }
+    )
+
+def generate_csv_from_donor_ids(donor_ids, visible_columns, headers, filename, db_session):
+    """Generate CSV file using specific donor IDs with chunked processing"""
+    from flask import Response
+    
+    def generate_csv_data():
+        """Generator function that yields CSV data in chunks"""
+        import csv
+        import io
+        
+        # Write headers first
+        output = io.StringIO()
+        writer = csv.writer(output, quoting=csv.QUOTE_MINIMAL)
+        writer.writerow(headers)
+        output.seek(0)
+        data = output.getvalue()
+        output.close()
+        yield data
+        
+        # Process donor IDs in chunks to avoid loading all into memory
+        total_donors = len(donor_ids)
+        for i in range(0, total_donors, DOWNLOAD_CHUNK_SIZE):
+            chunk_ids = donor_ids[i:i + DOWNLOAD_CHUNK_SIZE]
+            
+            # Fetch donors for this chunk
+            donors_chunk = db_session.query(EagleTrustFundDonor).filter(
+                EagleTrustFundDonor.base_donor_id.in_(chunk_ids)
+            ).order_by(EagleTrustFundDonor.last_name, EagleTrustFundDonor.first_name).all()
+            
+            # Process this chunk
+            output = io.StringIO()
+            writer = csv.writer(output, quoting=csv.QUOTE_MINIMAL)
+            
+            for donor in donors_chunk:
+                row = []
+                for col_id, _ in visible_columns:
+                    value = getattr(donor, col_id, None)
+                    if col_id in ['total_dollar_amount', 'latest_amount', 'largest_amount', 'inception_amount']:
+                        value = format_currency(value)
+                    elif value is None:
+                        value = ''
+                    
+                    # Clean up any problematic characters
+                    if value:
+                        cell_str = str(value).replace('\n', ' ').replace('\r', ' ')
+                        row.append(cell_str)
+                    else:
+                        row.append('')
+                
+                writer.writerow(row)
+            
+            # Yield this chunk's data
+            output.seek(0)
+            data = output.getvalue()
+            output.close()
+            yield data
+    
+    # Return streaming response
+    return Response(
+        generate_csv_data(),
+        mimetype='text/csv',
+        headers={
+            'Content-Disposition': f'attachment; filename={filename}',
+            'Content-Type': 'text/csv; charset=utf-8'
+        }
+    )
+
 def generate_csv(data, headers, filename):
     """Generate CSV file from data"""
     output = io.StringIO()
@@ -1666,33 +1859,31 @@ def generate_pdf(data, headers, filename, title, payment_type_totals=None, batch
 
 @app.route("/download_donor_results/<format>", methods=["POST"])
 def download_donor_results(format):
-    session = Session()
+    """Download donor search results using cached session data to avoid query duplication"""
+    db_session = Session()
     try:
-        # Build search query from form data
-        search_params = {
-            'donor_id': request.form.get("donor_id", "").strip(),
-            'alternate_id': request.form.get("alternate_id", "").strip(),
-            'first_name': request.form.get("first_name", "").strip(),
-            'last_name': request.form.get("last_name", "").strip(),
-            'email': request.form.get("email", "").strip(),
-            'city': request.form.get("city", "").strip(),
-            'state': request.form.get("state", "").strip(),
-            'zip_code': request.form.get("zip_code", "").strip(),
-            'phone': request.form.get("phone", "").strip(),
-            'exclude_deceased': request.form.get("exclude_deceased"),
-            'exclude_non_donors': request.form.get("exclude_non_donors"),
-            'hidden_columns': request.form.get("hidden_columns", ""),
-            # Status parameters
-            'donor_status': request.form.get("donor_status", "").strip(),
-            'newsletter_status': request.form.get("newsletter_status", "").strip(),
-            # Range parameters
-            'total_amount_range': request.form.get("total_amount_range", "").strip(),
-            'date_added_range': request.form.get("date_added_range", "").strip(),
-            'expiration_date_range': request.form.get("expiration_date_range", "").strip(),
-        }
+        # Check if we have valid cached search results
+        if not is_search_session_valid():
+            flash("No valid search results found. Please perform a search first.", "error")
+            return redirect(request.referrer or url_for('home'))
         
-        query, _ = build_search_query(session, search_params)
-        donors = query.all()
+        cached_results = session['last_search_results']
+        
+        # Get donor IDs and count from cache
+        donor_ids = cached_results['donor_ids']
+        total_count = cached_results['count']
+        
+        # SAFETY CHECK: Validate count against limits
+        max_limit = MAX_PDF_RESULTS if format == 'pdf' else MAX_DOWNLOAD_RESULTS
+        
+        if total_count > max_limit:
+            error_msg = f"Search returned {total_count:,} results, which exceeds the {format.upper()} download limit of {max_limit:,} donors. Please refine your search criteria to reduce the number of results."
+            flash(error_msg, "error")
+            return redirect(request.referrer or url_for('home'))
+        
+        if total_count == 0:
+            flash("No results found for your search criteria.", "warning")
+            return redirect(request.referrer or url_for('home'))
         
         # Get selected columns from form
         selected_columns = request.form.getlist('selected_columns')
@@ -1766,30 +1957,33 @@ def download_donor_results(format):
         visible_columns = [(col_id, all_columns[col_id]) for col_id in selected_columns if col_id in all_columns]
         headers = [label for _, label in visible_columns]
         
-        # Prepare data rows
-        data = []
-        for donor in donors:
-            row = []
-            for col_id, _ in visible_columns:
-                value = getattr(donor, col_id, None)
-                if col_id in ['total_dollar_amount', 'latest_amount', 'largest_amount', 'inception_amount']:
-                    value = format_currency(value)
-                elif value is None:
-                    value = ''
-                row.append(str(value))
-            data.append(row)
-        
-        # Generate appropriate file format
+        # Generate appropriate file format using cached donor IDs
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         if format == 'csv':
-            return generate_csv(data, headers, f'donor_results_{timestamp}.csv')
+            return generate_csv_from_donor_ids(donor_ids, visible_columns, headers, f'donor_results_{timestamp}.csv', db_session)
         elif format == 'pdf':
+            # For PDF, fetch all donors using the cached IDs
+            donors = db_session.query(EagleTrustFundDonor).filter(
+                EagleTrustFundDonor.base_donor_id.in_(donor_ids)
+            ).order_by(EagleTrustFundDonor.last_name, EagleTrustFundDonor.first_name).all()
+            
+            data = []
+            for donor in donors:
+                row = []
+                for col_id, _ in visible_columns:
+                    value = getattr(donor, col_id, None)
+                    if col_id in ['total_dollar_amount', 'latest_amount', 'largest_amount', 'inception_amount']:
+                        value = format_currency(value)
+                    elif value is None:
+                        value = ''
+                    row.append(str(value))
+                data.append(row)
             return generate_pdf(data, headers, f'donor_results_{timestamp}.pdf', 'Donor Search Results')
         else:
             abort(400, "Invalid format specified")
             
     finally:
-        session.close()
+        db_session.close()
 
 @app.route("/download_transaction_results/<format>", methods=["POST"])
 def download_transaction_results(format):
