@@ -645,6 +645,10 @@
                         <option value="E" ${paymentType === 'E' ? 'selected' : ''}>E - PS EAGLES</option>
                         <option value="C" ${paymentType === 'C' ? 'selected' : ''}>C - REG EAGLE COUNCIL</option>
                         <option value="O" ${paymentType === 'O' ? 'selected' : ''}>O - PURCH MATERIALS EFELDF</option>
+                        <option value="R" ${paymentType === 'R' ? 'selected' : ''}>R - RNC/LIFE</option>
+                        <option value="AE" ${paymentType === 'AE' ? 'selected' : ''}>AE - AMERICAN EAGLES</option>
+                        <option value="H" ${paymentType === 'H' ? 'selected' : ''}>H - RNC/LIFE PAC</option>
+                        <option value="L1" ${paymentType === 'L1' ? 'selected' : ''}>L1 - EFELDF (TAX-DEDUCTIBLE)</option>
                     </select>
                     <!-- Hidden fields for auto-filled values -->
                     <input type="hidden" name="appeal_code_${rowCounter}" value="">
@@ -731,6 +735,18 @@
                     break;
                 case 'O':
                     description = 'PURCH MATERIALS EFELDF';
+                    break;
+                case 'R':
+                    description = 'RNC/LIFE';
+                    break;
+                case 'AE':
+                    description = 'AMERICAN EAGLES';
+                    break;
+                case 'H':
+                    description = 'RNC/LIFE PAC';
+                    break;
+                case 'L1':
+                    description = 'EFELDF (TAX-DEDUCTIBLE)';
                     break;
                 default:
                     description = '';
